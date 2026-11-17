@@ -18,7 +18,7 @@
   // ---------- Storage ----------
   const KEY = 'kettlebell.v1';
   const DEFAULTS = {
-    settings: { minutes: 30, level: 1, focus: 'full', sound: true, voice: true, vibrate: true, theme: 'auto', voiceName: '', voiceRate: 1, voiceVol: 1, prepCue: 'ticks' },
+    settings: { minutes: 30, level: 1, focus: 'full', sound: true, voice: true, vibrate: true, theme: 'auto', voiceName: '', voiceRate: 1, voiceVol: 1, prepCue: 'ticks', silentMode: true },
     plan: null,
     history: [],
   };
@@ -344,7 +344,7 @@
         <div class="set-row"><div><div>Get-ready cue</div><div class="small muted">What you hear during the get-ready seconds</div></div>
           <div class="seg mini" id="prepCue" style="min-width:180px">${[['ticks', 'Soft ticks'], ['count', '3-2-1 voice'], ['off', 'Off']].map(([v, l]) => `<button data-v="${v}" class="${S.prepCue === v ? 'on' : ''}">${l}</button>`).join('')}</div></div>
         ${sw('vibrate', 'Vibration', 'On phones that support it')}
-        <p class="small muted" style="margin:8px 0 0">iPhone: sounds are muted when the silent switch is on; the voice still plays if the media volume is up.</p>
+        ${sw('silentMode', 'Play when phone is on silent', 'Voice and sounds work even with the silent switch on. On iPhone this may pause music playing in another app.')}
       </div>
       <div class="card"><p class="label">Timing</p>
         <p class="small muted" style="margin:0">Work, rest, get-ready time, warm-up and cool-down are set on the Workout tab, under <b>Timing</b>.</p>
@@ -362,7 +362,10 @@
         <button class="btn ghost block" id="clearHist">Clear history</button>
       </div>`;
     $$('input[data-k]').forEach((i) => (i.onchange = () => { S[i.dataset.k] = i.checked; save(); }));
-    $$('input[data-k]').forEach((i) => i.addEventListener('change', () => { if (i.dataset.k === 'voice') $('#voiceBox').hidden = !S.voice; }));
+    $$('input[data-k]').forEach((i) => i.addEventListener('change', () => {
+      if (i.dataset.k === 'voice') $('#voiceBox').hidden = !S.voice;
+      if (i.dataset.k === 'silentMode' && !S.silentMode) Fx.mediaMode(false);
+    }));
     const fillVoices = () => {
       const vs = Fx.englishVoices();
       const sel = $('#voiceSel'); if (!sel) return;
@@ -385,6 +388,7 @@
       [3, 2, 1].forEach((n, k) => setTimeout(() => Fx.countdown(n), 3200 + k * 1000));
       setTimeout(() => { Fx.go(); Fx.say('Go!'); }, 6200);
       setTimeout(() => { Fx.switchCue(); Fx.say('Switch hands.'); }, 8200);
+      setTimeout(() => { if ($('#player').hidden) Fx.mediaMode(false); }, 11000);
     };
     $$('#theme button').forEach((b) => (b.onclick = () => { S.theme = b.dataset.t; save(); applyTheme(); $$('#theme button').forEach((x) => x.classList.toggle('on', x === b)); }));
     $('#clearHist').onclick = () => { if (confirm('Delete your entire workout history?')) { store.history = []; save(); toast('History cleared'); } };
@@ -394,6 +398,7 @@
   const Fx = {
     ctx: null,
     unlock() {
+      this.mediaMode(S.silentMode);
       try {
         if (!this.ctx) this.ctx = new (window.AudioContext || window.webkitAudioContext)();
         if (this.ctx.state === 'suspended') this.ctx.resume();
@@ -402,6 +407,35 @@
       if (window.speechSynthesis && !this._primed) {
         try { const u = new SpeechSynthesisUtterance(' '); u.volume = 0; speechSynthesis.speak(u); this._primed = true; } catch (e) { /* ignore */ }
       }
+    },
+    // iPhone: web audio follows the silent switch unless the page is in "media playback" mode.
+    // Two layers: the Audio Session API (Safari 17+) and a looping silent <audio> element,
+    // which keeps the page in playback mode on older iOS versions as well.
+    silentEl: null,
+    silentUrl() {
+      const rate = 8000, n = rate / 2; // 0.5 s of silence, 8-bit mono WAV
+      const buf = new ArrayBuffer(44 + n), v = new DataView(buf);
+      const w = (o, str) => { for (let i = 0; i < str.length; i++) v.setUint8(o + i, str.charCodeAt(i)); };
+      w(0, 'RIFF'); v.setUint32(4, 36 + n, true); w(8, 'WAVE'); w(12, 'fmt ');
+      v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true);
+      v.setUint32(24, rate, true); v.setUint32(28, rate, true); v.setUint16(32, 1, true); v.setUint16(34, 8, true);
+      w(36, 'data'); v.setUint32(40, n, true);
+      for (let i = 0; i < n; i++) v.setUint8(44 + i, 128);
+      return URL.createObjectURL(new Blob([buf], { type: 'audio/wav' }));
+    },
+    mediaMode(on) {
+      try { if (navigator.audioSession) navigator.audioSession.type = on ? 'playback' : 'auto'; } catch (e) { /* not supported */ }
+      try {
+        if (on) {
+          if (!this.silentEl) {
+            const a = document.createElement('audio');
+            a.src = this.silentUrl(); a.loop = true; a.setAttribute('playsinline', ''); a.setAttribute('x-webkit-airplay', 'deny');
+            a.preload = 'auto'; a.volume = 0.01;
+            this.silentEl = a;
+          }
+          const pr = this.silentEl.play(); if (pr && pr.catch) pr.catch(() => {});
+        } else if (this.silentEl) this.silentEl.pause();
+      } catch (e) { /* ignore */ }
     },
     // Subtle get-ready cues
     tick() { this.beep(1400, 0.025, 0.05); },
@@ -652,6 +686,7 @@
     },
     close() {
       clearInterval(this.timer);
+      Fx.mediaMode(false);
       if (this.svg) Figure.stop(this.svg);
       if (window.speechSynthesis) speechSynthesis.cancel();
       try { if (this.lock) this.lock.release(); } catch (e) { /* ignore */ }
