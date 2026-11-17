@@ -24,5 +24,5 @@ let prepT=null, sw=null;
 for(let i=0;i<60 && (!prepT||!sw);i++){await p.click('#pNext');await p.waitForTimeout(60);
  const ph=await p.textContent('.p-phase');
  if(ph==='Get ready'&&!prepT)prepT=await p.textContent('.p-timer');
- if(ph==='Switch sides'&&!sw){sw=[await p.textContent('.p-timer'),await p.textContent('.p-name')];await p.screenshot({path:S+'/c-switch.png'});}}
+ if(ph==='Switch'&&!sw){sw=[await p.textContent('.p-timer'),await p.textContent('.p-name')];await p.screenshot({path:S+'/c-switch.png'});}}
 console.log('grab',grab,'rest30',r30,'after',back,'prep',prepT,'switch',sw,'errors:',errs.join('\n')||'none');await b.close();})();

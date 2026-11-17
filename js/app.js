@@ -18,7 +18,7 @@
   // ---------- Storage ----------
   const KEY = 'kettlebell.v1';
   const DEFAULTS = {
-    settings: { minutes: 30, level: 1, focus: 'full', sound: true, voice: true, vibrate: true, theme: 'auto' },
+    settings: { minutes: 30, level: 1, focus: 'full', sound: true, voice: true, vibrate: true, theme: 'auto', voiceName: '', voiceRate: 1, voiceVol: 1, prepCue: 'ticks' },
     plan: null,
     history: [],
   };
@@ -332,10 +332,19 @@
     const sw = (key, label, sub) => `<div class="set-row"><div><div>${label}</div>${sub ? `<div class="small muted">${sub}</div>` : ''}</div><label class="switch"><input type="checkbox" data-k="${key}" ${S[key] ? 'checked' : ''}><span></span></label></div>`;
     v.innerHTML = `
       <div class="card"><p class="label">Sound &amp; feedback</p>
-        ${sw('sound', 'Beeps', 'At the start of each interval and in the last 3 seconds')}
-        ${sw('voice', 'Voice coach', 'Announces each exercise (English)')}
+        ${sw('voice', 'Voice coach', 'Announces the next exercise, which side starts, “switch hands” and rests')}
+        <div id="voiceBox" ${S.voice ? '' : 'hidden'}>
+          <div class="set-row"><div>Voice</div><select id="voiceSel" class="select"></select></div>
+          <div class="set-row"><div>Speed</div><div class="seg mini" id="vRate" style="min-width:180px">${[[0.9, 'Calm'], [1, 'Normal'], [1.15, 'Fast']].map(([v, l]) => `<button data-v="${v}" class="${S.voiceRate == v ? 'on' : ''}">${l}</button>`).join('')}</div></div>
+          <div class="set-row"><div>Volume</div><input type="range" id="vVol" min="0.3" max="1" step="0.1" value="${S.voiceVol}" style="max-width:160px"></div>
+          <button class="btn ghost block" id="testVoice" style="margin-top:10px">Test voice</button>
+          <p class="small muted" id="voiceNote" style="margin:8px 0 0"></p>
+        </div>
+        ${sw('sound', 'Sounds', 'Start chime, soft countdown in the last 3 seconds')}
+        <div class="set-row"><div><div>Get-ready cue</div><div class="small muted">What you hear during the get-ready seconds</div></div>
+          <div class="seg mini" id="prepCue" style="min-width:180px">${[['ticks', 'Soft ticks'], ['count', '3-2-1 voice'], ['off', 'Off']].map(([v, l]) => `<button data-v="${v}" class="${S.prepCue === v ? 'on' : ''}">${l}</button>`).join('')}</div></div>
         ${sw('vibrate', 'Vibration', 'On phones that support it')}
-        <button class="btn ghost block" id="testVoice" style="margin-top:10px">Test voice</button>
+        <p class="small muted" style="margin:8px 0 0">iPhone: sounds are muted when the silent switch is on; the voice still plays if the media volume is up.</p>
       </div>
       <div class="card"><p class="label">Timing</p>
         <p class="small muted" style="margin:0">Work, rest, get-ready time, warm-up and cool-down are set on the Workout tab, under <b>Timing</b>.</p>
@@ -353,7 +362,30 @@
         <button class="btn ghost block" id="clearHist">Clear history</button>
       </div>`;
     $$('input[data-k]').forEach((i) => (i.onchange = () => { S[i.dataset.k] = i.checked; save(); }));
-    $('#testVoice').onclick = () => { Fx.unlock(); const prev = S.voice; S.voice = true; Fx.say('Goblet squat. Let\'s go!'); S.voice = prev; };
+    $$('input[data-k]').forEach((i) => i.addEventListener('change', () => { if (i.dataset.k === 'voice') $('#voiceBox').hidden = !S.voice; }));
+    const fillVoices = () => {
+      const vs = Fx.englishVoices();
+      const sel = $('#voiceSel'); if (!sel) return;
+      const cur = (Fx.currentVoice() || {}).name;
+      sel.innerHTML = vs.length ? vs.map((v) => `<option value="${v.name}" ${v.name === cur ? 'selected' : ''}>${v.name.replace(/\(.*\)/, '').trim()} · ${v.lang}</option>`).join('') : '<option>Default voice</option>';
+      $('#voiceNote').textContent = vs.length ? '' : 'No English voice found on this device – it will use the default voice. You can add one in your phone settings (Accessibility → Spoken content / Text-to-speech).';
+    };
+    fillVoices();
+    if (window.speechSynthesis) speechSynthesis.addEventListener('voiceschanged', fillVoices);
+    $('#voiceSel').onchange = (e) => { S.voiceName = e.target.value; Fx.voiceObj = null; save(); Fx.unlock(); Fx.say('Next up: goblet squat.'); };
+    $$('#vRate button').forEach((b) => (b.onclick = () => { S.voiceRate = +b.dataset.v; save(); $$('#vRate button').forEach((x) => x.classList.toggle('on', x === b)); Fx.unlock(); Fx.say('Switch hands. Go!'); }));
+    $('#vVol').onchange = (e) => { S.voiceVol = +e.target.value; save(); Fx.unlock(); Fx.say('Rest. Next up: push-up.'); };
+    $$('#prepCue button').forEach((b) => (b.onclick = () => {
+      S.prepCue = b.dataset.v; save(); $$('#prepCue button').forEach((x) => x.classList.toggle('on', x === b));
+      Fx.unlock(); [3, 2, 1].forEach((n, k) => setTimeout(() => Fx.countdown(n), k * 1000)); setTimeout(() => Fx.go(), 3000);
+    }));
+    $('#testVoice').onclick = () => {
+      Fx.unlock();
+      Fx.say('Next up: one-arm swing. Right hand first.');
+      [3, 2, 1].forEach((n, k) => setTimeout(() => Fx.countdown(n), 3200 + k * 1000));
+      setTimeout(() => { Fx.go(); Fx.say('Go!'); }, 6200);
+      setTimeout(() => { Fx.switchCue(); Fx.say('Switch hands.'); }, 8200);
+    };
     $$('#theme button').forEach((b) => (b.onclick = () => { S.theme = b.dataset.t; save(); applyTheme(); $$('#theme button').forEach((x) => x.classList.toggle('on', x === b)); }));
     $('#clearHist').onclick = () => { if (confirm('Delete your entire workout history?')) { store.history = []; save(); toast('History cleared'); } };
   }
@@ -366,8 +398,20 @@
         if (!this.ctx) this.ctx = new (window.AudioContext || window.webkitAudioContext)();
         if (this.ctx.state === 'suspended') this.ctx.resume();
       } catch (e) { /* no audio */ }
-      if (window.speechSynthesis && !this._primed) { try { speechSynthesis.speak(new SpeechSynthesisUtterance('')); this._primed = true; } catch (e) { /* ignore */ } }
+      // iOS only allows speech after a real utterance started from a tap
+      if (window.speechSynthesis && !this._primed) {
+        try { const u = new SpeechSynthesisUtterance(' '); u.volume = 0; speechSynthesis.speak(u); this._primed = true; } catch (e) { /* ignore */ }
+      }
     },
+    // Subtle get-ready cues
+    tick() { this.beep(1400, 0.025, 0.05); },
+    countdown(n) {
+      if (S.prepCue === 'off') return;
+      if (S.prepCue === 'count') this.say(String(n), true);
+      this.beep({ 3: 620, 2: 700, 1: 790 }[n] || 700, 0.09, 0.12);
+    },
+    go() { this.beep(990, 0.22, 0.22); this.beep(1320, 0.3, 0.16, 0.08); },
+    switchCue() { this.beep(880, 0.1, 0.18); this.beep(1100, 0.12, 0.18, 0.14); },
     beep(freq = 880, dur = 0.12, vol = 0.25, when = 0) {
       if (!S.sound || !this.ctx) return;
       const t = this.ctx.currentTime + when;
@@ -377,21 +421,30 @@
       o.connect(g).connect(this.ctx.destination); o.start(t); o.stop(t + dur + 0.02);
     },
     voiceObj: null,
+    englishVoices() {
+      if (!window.speechSynthesis) return [];
+      return speechSynthesis.getVoices().filter((v) => v.lang && v.lang.toLowerCase().replace('_', '-').startsWith('en'));
+    },
+    currentVoice() { if (!this.voiceObj) this.voiceObj = this.pickVoice(); return this.voiceObj; },
     pickVoice() {
-      const vs = speechSynthesis.getVoices().filter((v) => v.lang && v.lang.toLowerCase().startsWith('en'));
+      if (!window.speechSynthesis) return null;
+      const vs = this.englishVoices();
+      if (S.voiceName) { const v = vs.find((x) => x.name === S.voiceName); if (v) return v; }
       const pref = [/samantha/i, /google us english/i, /aria|jenny|guy/i, /daniel/i, /karen|moira|serena/i, /en-us/i];
       for (const re of pref) { const v = vs.find((x) => re.test(x.name) || re.test(x.lang)); if (v) return v; }
       return vs.find((v) => v.localService) || vs[0] || null;
     },
-    say(text) {
-      if (!S.voice || !window.speechSynthesis) return;
+    say(text, force) {
+      if ((!S.voice && !force) || !window.speechSynthesis) return;
       try {
-        speechSynthesis.cancel();
         const u = new SpeechSynthesisUtterance(text);
-        if (!this.voiceObj) this.voiceObj = this.pickVoice();
-        if (this.voiceObj) { u.voice = this.voiceObj; u.lang = this.voiceObj.lang; } else u.lang = 'en-US';
-        u.rate = 1.0;
-        speechSynthesis.speak(u);
+        const v = this.currentVoice();
+        if (v) { u.voice = v; u.lang = v.lang; } else u.lang = 'en-US';
+        u.rate = S.voiceRate || 1;
+        u.volume = S.voiceVol || 1;
+        // Some Android browsers drop an utterance spoken right after cancel(), so leave a short gap
+        if (speechSynthesis.speaking || speechSynthesis.pending) { speechSynthesis.cancel(); setTimeout(() => speechSynthesis.speak(u), 90); }
+        else speechSynthesis.speak(u);
       } catch (e) { /* ignore */ }
     },
     buzz(p) { if (S.vibrate && navigator.vibrate) try { navigator.vibrate(p); } catch (e) { /* ignore */ } },
@@ -399,10 +452,14 @@
   if (window.speechSynthesis) speechSynthesis.onvoiceschanged = () => { Fx.voiceObj = null; };
 
   // ---------- Player ----------
-  const PHASE = { prep: 'Get ready', warmup: 'Warm-up', work: 'Work', rest: 'Rest', cooldown: 'Cool-down', switch: 'Switch sides' };
+  const PHASE = { prep: 'Get ready', warmup: 'Warm-up', work: 'Work', rest: 'Rest', cooldown: 'Cool-down', switch: 'Switch' };
+  // Is the side change about hands or legs?
+  const LEG_MOVES = new Set(['sldl', 'kickstand', 'bridge1', 'splitSquat', 'rackLunge', 'suitLunge', 'ohLunge', 'lungeKnee', 's_quad', 's_hipflex']);
+  const limb = (e) => (LEG_MOVES.has(e.id) ? 'leg' : e.cat === 'stretch' ? 'side' : 'hand');
   const Player = {
     start(plan) {
       Fx.unlock();
+      if (window.speechSynthesis) speechSynthesis.cancel();
       this.plan = plan;
       this.iv = Generator.buildIntervals(plan);
       this.total = this.iv.reduce((s, x) => s + x.dur, 0);
@@ -485,10 +542,10 @@
       this.el.classList.toggle('cool', x.phase === 'cooldown');
       $('.p-phase', this.el).textContent = PHASE[x.phase];
       $('.p-label', this.el).textContent = x.label || '';
-      $('.p-name', this.el).textContent = (x.phase === 'switch' ? 'Left side next · ' : isRest ? 'Next: ' : '') + e.name;
+      $('.p-name', this.el).textContent = (x.phase === 'switch' ? `Left ${limb(e)} next · ` : isRest ? 'Next: ' : '') + e.name;
       const badge = $('.p-badge', this.el);
-      if (x.side && !isRest) { badge.hidden = false; badge.textContent = x.side; badge.classList.toggle('alt', x.side === 'Alternate'); }
-      else if (isRest && e.uni && x.phase !== 'switch') { badge.hidden = false; badge.textContent = 'Right side first'; badge.classList.add('alt'); }
+      if (x.side && !isRest) { badge.hidden = false; badge.textContent = x.side === 'Alternate' ? 'Alternate' : `${x.side.split(' ')[0]} ${limb(e)}`; badge.classList.toggle('alt', x.side === 'Alternate'); }
+      else if (isRest && e.uni && x.phase !== 'switch') { badge.hidden = false; badge.textContent = `Right ${limb(e)} first`; badge.classList.add('alt'); }
       else badge.hidden = true;
       $('.p-cue', this.el).textContent = e.cues[0] || '';
       this.cueIdx = 0;
@@ -499,25 +556,32 @@
       this.renderSkips();
       this.renderTime();
 
+      const lim = limb(e);
+      const prev = i > 0 ? this.iv[i - 1] : null;
       if (x.phase === 'prep') {
-        Fx.beep(520, 0.2); Fx.buzz(80);
-        Fx.say(first ? `Get ready. First up: ${e.name}` : `Get ready. ${e.name}${e.uni ? ', right side first' : ''}`);
+        Fx.buzz(60);
+        const sideTxt = e.uni ? `. Right ${lim} first` : e.alt ? '. Alternate sides' : '';
+        if (first) Fx.say(`Get ready. First up: ${e.name}${sideTxt}.`);
+        else if (x.label === 'Grab your kettlebell') Fx.say(`Grab your kettlebell. First up: ${e.name}${sideTxt}.`);
+        else if (x.label === 'Cool-down next') Fx.say(`Great work. Cool-down: ${e.name}.`);
+        else if (prev && prev.phase === 'rest') Fx.say(e.uni ? `Right ${lim} first.` : 'Get ready.');
+        else Fx.say(`Next: ${e.name}${sideTxt}.`);
       } else if (x.phase === 'switch') {
-        Fx.beep(880, 0.12); Fx.beep(880, 0.12, 0.25, 0.18); Fx.buzz([80, 60, 80]);
-        Fx.say('Switch sides');
+        Fx.switchCue(); Fx.buzz([80, 60, 80]);
+        Fx.say(`Switch ${lim}s.`);
       } else if (x.phase === 'rest') {
-        Fx.beep(440, 0.3); Fx.buzz(150);
-        Fx.say(`Rest. Next up: ${e.name}`);
+        Fx.beep(440, 0.3, 0.15); Fx.buzz(150);
+        Fx.say(x.label === 'Extra rest' ? 'Take thirty seconds.' : `Rest. Next up: ${e.name}.`);
       } else if (x.sideSwitch) {
-        Fx.beep(880, 0.12); Fx.beep(880, 0.12, 0.25, 0.18); Fx.buzz([80, 60, 80]);
-        Fx.say('Switch sides');
+        Fx.switchCue(); Fx.buzz([80, 60, 80]);
+        Fx.say(`Switch ${lim}s.`);
       } else {
-        Fx.beep(990, 0.35); Fx.buzz(200);
-        const prev = i > 0 ? this.iv[i - 1] : null;
-        if (prev && prev.phase === 'switch') Fx.say('Left side. Go!');
+        Fx.go(); Fx.buzz(200);
+        const sideWord = x.side === 'Right side' ? `Right ${lim}. ` : x.side === 'Left side' ? `Left ${lim}. ` : '';
+        if (prev && prev.phase === 'switch') Fx.say(`${sideWord}Go!`);
         else if (prev && prev.phase === 'rest' && prev.label === 'Extra rest') Fx.say('Back to it. Go!');
-        else if (prev && prev.phase === 'prep' && prev.ex === x.ex) Fx.say(x.side === 'Right side' ? 'Right side. Go!' : 'Go!');
-        else Fx.say(`${e.name}${x.side === 'Right side' ? ', right side' : x.side === 'Left side' ? ', left side' : x.side === 'Alternate' ? ', alternating' : ''}. Go!`);
+        else if (prev && prev.phase === 'prep' && prev.ex === x.ex) Fx.say('Go!');
+        else Fx.say(`${e.name}. ${sideWord}${x.side === 'Alternate' ? 'Alternate sides. ' : ''}Go!`);
       }
     },
     renderTime() {
@@ -532,7 +596,12 @@
       if (!this.running) return;
       this.remain -= dt;
       const sec = Math.ceil(this.remain);
-      if (sec <= 3 && sec >= 1 && this.lastBeep !== sec) { this.lastBeep = sec; Fx.beep(660, 0.1, 0.2); }
+      if (sec >= 1 && this.lastBeep !== sec && sec < Math.ceil(this.iv[this.idx].dur)) {
+        this.lastBeep = sec;
+        const ph = this.iv[this.idx].phase;
+        if (ph === 'prep') { if (sec <= 3) Fx.countdown(sec); else if (S.prepCue !== 'off') Fx.tick(); }
+        else if (sec <= 3 && ph !== 'switch') Fx.beep(660, 0.07, 0.1); // soft end-of-interval countdown
+      }
       const x = this.iv[this.idx], e = EX[x.ex];
       const ci = Math.floor((x.dur - this.remain) / 10) % e.cues.length;
       if (ci !== this.cueIdx) { this.cueIdx = ci; $('.p-cue', this.el).textContent = e.cues[ci]; }
@@ -597,6 +666,20 @@
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible' && !$('#player').hidden && Player.running) Player.wake();
   });
+
+  // Block zoom: iOS Safari ignores user-scalable=no, so stop pinch gestures and fast double-taps here too
+  ['gesturestart', 'gesturechange', 'gestureend'].forEach((ev) => document.addEventListener(ev, (e) => e.preventDefault(), { passive: false }));
+  document.addEventListener('touchmove', (e) => { if (e.touches.length > 1) e.preventDefault(); }, { passive: false });
+  let lastTouchEnd = 0;
+  document.addEventListener('touchend', (e) => {
+    const now = Date.now();
+    if (now - lastTouchEnd < 350 && !e.target.closest('input, select, textarea')) {
+      e.preventDefault();
+      const t = e.target.closest('button, label, [data-skip]');
+      if (t) t.click(); // still register the second tap on buttons
+    }
+    lastTouchEnd = now;
+  }, { passive: false });
 
   render();
 
