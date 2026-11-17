@@ -1,5 +1,5 @@
 // Offline-first service worker. Bump VERSION when files change.
-const VERSION = 'kb-v1';
+const VERSION = 'kb-v2';
 const ASSETS = [
   './', 'index.html', 'manifest.webmanifest', 'css/styles.css',
   'js/figure.js', 'js/anims.js', 'js/exercises.js', 'js/generator.js', 'js/app.js',

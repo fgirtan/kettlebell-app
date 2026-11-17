@@ -9,6 +9,7 @@
   --accent-ink: #1a0d00;
   --good: #3ecf8e;
   --rest: #4aa3ff;
+  --prep: #f5c542;
   --fig: #f2f3f5;
   --fig-far: #6b7280;
   --kb: #ff7a1a;
@@ -204,3 +205,26 @@ input[type=range] { width: 100%; accent-color: var(--accent); }
 @media (min-width: 700px) {
   .p-stage svg { max-height: 52vh; }
 }
+
+/* ---------- Timing panel ---------- */
+.timing-head { width: 100%; background: none; border: 0; padding: 0; text-align: left; align-items: flex-start; }
+.chev { width: 28px; height: 28px; flex: none; display: inline-flex; align-items: center; justify-content: center; transition: transform .2s; color: var(--muted); }
+.chev svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
+.chev.open { transform: rotate(180deg); }
+#tBody { margin-top: 8px; }
+.seg.mini button { padding: 8px 2px; font-size: 13px; }
+.seg-row { padding: 0 0 12px; border-bottom: 1px solid var(--line); }
+.stepper b { min-width: 58px; }
+
+/* ---------- Player additions ---------- */
+.p-left { display: flex; flex-direction: column; align-items: flex-end; line-height: 1.1; }
+.p-left b { font-variant-numeric: tabular-nums; font-size: 15px; }
+.p-left span { font-size: 11px; color: var(--muted); }
+.player.prep .p-timer, .player.prep .p-phase { color: var(--prep); }
+.player.prep .p-progress i { background: var(--prep); }
+.p-skips { display: flex; justify-content: center; gap: 8px; flex-wrap: wrap; min-height: 38px; margin-top: 8px; }
+.p-skips .chip { padding: 8px 14px; }
+.p-controls button { flex-direction: column; gap: 2px; }
+.p-controls button small { font-size: 10px; font-weight: 700; color: var(--muted); }
+.p-controls .ic { display: flex; }
+.p-controls button:not(.main) .ic svg { width: 22px; height: 22px; }

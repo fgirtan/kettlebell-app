@@ -1,8 +1,8 @@
 {
-  "name": "Kettlebell – antrenamente",
+  "name": "Kettlebell Workouts",
   "short_name": "Kettlebell",
-  "description": "Antrenamente cu kettlebell generate în funcție de timp, cu animații pentru fiecare exercițiu.",
-  "lang": "ro",
+  "description": "Kettlebell workouts built around the time you have, with an animation for every exercise.",
+  "lang": "en",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",

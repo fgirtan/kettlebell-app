@@ -1,8 +1,11 @@
 global.window=global;require('../js/exercises.js');require('../js/generator.js');
-console.log('exercises:',EXERCISES.length, Object.entries(EXERCISES.reduce((a,e)=>(a[e.cat]=(a[e.cat]||0)+1,a),{})).map(x=>x.join(':')).join(' '));
-for(const lvl of [1,2,3])for(const m of [5,10,15,20,30,45,60]){
-  const p=Generator.generate({minutes:m,level:lvl,focus:'full'});
-  const tot=Generator.totalDuration(p);
-  console.log(`L${lvl} ${m}min -> ${(tot/60).toFixed(1)}min warm ${p.warm.length}x${p.warmDur} cool ${p.cool.length}x${p.coolDur} | `+p.blocks.map(b=>`${b.rounds}x[`+b.ex.map(id=>EX[id].ro.split(' (')[0]+'('+EX[id].region[0]+')').join(' > ')+']').join(' || '));
+const cfgs=[{},{prep:10,restEvery:2,rest:45},{warmOn:false,coolOn:false},{warmMin:8,coolMin:5},{prep:0,rest:0,roundRest:60},{work:60,rest:30,restEvery:3,prep:15}];
+let bad=0;
+for(const c of cfgs)for(const lvl of [1,2,3])for(const m of [5,10,15,20,25,30,45,60,90]){
+  const p=Generator.generate({minutes:m,level:lvl,focus:'full',timing:Object.assign({},Generator.LEVEL_TIMING[lvl],c)});
+  const iv=Generator.buildIntervals(p);const tot=iv.reduce((s,x)=>s+x.dur,0);
+  const w=iv.filter(x=>x.phase==='work');const wd=[...new Set(w.map(x=>x.side&&x.side.includes('side')?'u':x.dur))];
+  if(tot!==m*60){bad++;console.log('MISMATCH',JSON.stringify(c),lvl,m,tot);}
+  if(lvl===2&&[10,30,60].includes(m))console.log(JSON.stringify(c).padEnd(48),m,'min ok | warm',p.warm.length,'cool',p.cool.length,'| blocks',p.blocks.map(b=>b.rounds+'x'+b.ex.length).join(' '),'| work durs',wd.slice(0,6).join(','));
 }
-for(const f of ['lower','upper','core']){const p=Generator.generate({minutes:30,level:2,focus:f});console.log(f, p.blocks.map(b=>b.ex.join(',')).join(' || '));}
+console.log('mismatches',bad);

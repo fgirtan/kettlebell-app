@@ -1,50 +1,57 @@
 # Kettlebell App
 
-Progressive Web App (PWA) pentru antrenamente cu kettlebell: funcționează offline, se instalează pe ecranul telefonului și nu are nevoie de server sau cont.
+A Progressive Web App for kettlebell training. Install it on your phone's home screen and it works offline, with no server or account needed.
 
-## Ce face
+## Features
 
-- **Generează antrenamente în funcție de timp** (5–90 min), nivel (începător / intermediar / avansat) și accent (tot corpul, picioare, partea superioară, core).
-- **Animație pentru fiecare exercițiu**: figură animată, văzută din profil, cu kettlebell-ul.
-- **94 de exerciții**: 72 principale (swing, clean, snatch, genuflexiuni, îndreptări, fandări, prese, ramat, brațe, core, ridicarea turcească, cărat), plus 11 de încălzire și 11 de stretching. Fiecare are indicații de execuție în română și greșeala de evitat.
-- **Ordinea are logică de antrenament**: fiecare circuit acoperă tiparele de bază (hinge, genuflexiune, împins, tras, fandare, core, tot corpul), apoi ordinea e optimizată astfel încât:
-  - exercițiile explozive și tehnice (swing, clean, snatch, get-up) vin primele, cât ești odihnit;
-  - partea inferioară alternează cu cea superioară, deci aceeași grupă musculară nu lucrează de două ori la rând;
-  - core-ul și exercițiile la sol sunt grupate la final, ca să nu te tot ridici și să te tot pui jos.
-- **Încălzirea și revenirea** se scalează după durată. Încălzirea merge de la cardio ușor la umeri, șolduri, picioare, apoi activare; stretchingul trece de la exerciții în picioare la cele la sol.
-- **Player cu cronometru**: bip în ultimele 3 secunde, anunț vocal în română, vibrații, „schimbă partea” la exercițiile unilaterale, ecranul rămâne aprins (Wake Lock).
-- **Exerciții interschimbabile**: înlocuiești orice exercițiu cu altul din aceeași categorie, iar ordinea se recalculează.
-- **Istoric** cu numărul de antrenamente, minutele totale și zilele la rând (salvat local, pe telefon).
+- **Workouts built around your time.** Pick 5–90 minutes. The selected time is the **total**, to the second: warm-up, work, rests, get-ready countdowns and cool-down are all included.
+- **An animation for every exercise.** Each move has an animated side-view figure holding the kettlebell.
+- **94 exercises.** That's 72 main exercises (swings, cleans, snatches, squats, deadlifts, lunges, presses, rows, arms, core, Turkish get-up, carries), 11 warm-up moves and 11 stretches. Each one has coaching cues and a common mistake to avoid.
+- **A logical full-body flow.** Each circuit covers the basic movement patterns (hinge, squat, push, pull, lunge, core, total body), then the order is optimised so that:
+  - explosive and technical lifts come first, while you're fresh;
+  - lower and upper body alternate, so the same muscle group is never hit twice in a row;
+  - core and floor work are grouped at the end, so you're not constantly getting up and down.
+- **Configurable timing** (Workout tab → Timing):
+  - Work time
+  - Rest between exercises
+  - Rest after every *N* exercises (1 = after each, 2 = supersets, …)
+  - Get-ready countdown before each exercise
+  - Rest between rounds and between blocks
+  - Warm-up on/off with a duration (Auto or 2–10 min)
+  - Cool-down on/off with a duration (Auto or 2–8 min)
+- **Interval player:**
+  - English voice coach, beeps in the last 3 seconds, vibration, and a "switch sides" cue for one-sided exercises.
+  - The screen stays awake.
+  - **Skip** controls: skip the exercise, skip the rest, start now, +15s of rest, skip the warm-up, skip to the cool-down, finish now.
+- **Swap any exercise** for another one from the same category; the order is recalculated.
+- **History** with total workouts, total minutes and your day streak, stored on the device.
 
-## Instalare pe telefon
+## Hosting
 
-Aplicația are nevoie de HTTPS ca să poată fi instalată. Cel mai simplu e GitHub Pages:
+The app is a static site: plain HTML, CSS and JS, with no build step.
 
-1. În repository: **Settings → Pages → Build and deployment → Source: Deploy from a branch**, branch `main`, folder `/ (root)`.
-2. După ~1 minut, deschide `https://<user>.github.io/<repo>/` pe telefon.
-3. **Android (Chrome):** ⋮ → *Instalează aplicația* / *Adaugă pe ecranul de pornire*.
-   **iPhone (Safari):** Partajare → *Adaugă pe ecranul principal*.
+- **Render:** New → Static Site → this repo, branch `main`, Build Command empty, Publish Directory `.`
+- **GitHub Pages:** Settings → Pages → Deploy from a branch → `main` / `(root)`
 
-După prima deschidere, totul e salvat în cache și merge **fără internet**.
+Open the URL on your phone, then:
 
-## Rulare locală
+- **Android (Chrome):** ⋮ → *Install app*
+- **iPhone (Safari):** Share → *Add to Home Screen*
+
+## Run locally
 
 ```bash
 python3 -m http.server 8000
 ```
 
-Apoi deschide http://localhost:8000.
+## Structure
 
-## Structură
-
-| Fișier | Rol |
+| File | Purpose |
 | --- | --- |
-| `js/exercises.js` | Baza de date de exerciții (categorie, regiune, mușchi, nivel, indicații) |
-| `js/generator.js` | Bugetul de timp, alegerea exercițiilor, optimizarea ordinii, timeline-ul de intervale |
-| `js/figure.js` | Motorul de animație: figură SVG cu cinematică directă și inversă |
-| `js/anims.js` | Cadrele cheie ale animației pentru fiecare tipar de mișcare |
-| `js/app.js` | Interfața: generator, player, bibliotecă, istoric, setări |
-| `sw.js` | Service worker pentru funcționare offline (crește `VERSION` după orice modificare) |
-| `dev/` | Unelte de dezvoltare: grila de animații, test pentru generator, generarea iconițelor |
-
-Fără dependențe și fără pas de build: doar HTML, CSS și JavaScript.
+| `js/exercises.js` | Exercise database (category, region, muscles, level, cues) |
+| `js/generator.js` | Time budget, exercise selection, flow ordering, exact-time interval timeline |
+| `js/figure.js` | SVG stick-figure animation engine (forward and inverse kinematics) |
+| `js/anims.js` | Keyframes for each movement pattern |
+| `js/app.js` | UI: generator, timing panel, player, library, history, settings |
+| `sw.js` | Offline service worker (bump `VERSION` whenever files change) |
+| `dev/` | Dev tools: animation grid, generator test, icon builder, UI walkthrough |
