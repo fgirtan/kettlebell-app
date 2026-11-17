@@ -7,22 +7,25 @@ A Progressive Web App for kettlebell training. Install it on your phone's home s
 - **Workouts built around your time.** Pick 5–90 minutes. The selected time is the **total**, to the second: warm-up, work, rests, get-ready countdowns and cool-down are all included.
 - **An animation for every exercise.** Each move has an animated side-view figure holding the kettlebell.
 - **94 exercises.** That's 72 main exercises (swings, cleans, snatches, squats, deadlifts, lunges, presses, rows, arms, core, Turkish get-up, carries), 11 warm-up moves and 11 stretches. Each one has coaching cues and a common mistake to avoid.
-- **A logical full-body flow.** Each circuit covers the basic movement patterns (hinge, squat, push, pull, lunge, core, total body), then the order is optimised so that:
-  - explosive and technical lifts come first, while you're fresh;
-  - lower and upper body alternate, so the same muscle group is never hit twice in a row;
-  - core and floor work are grouped at the end, so you're not constantly getting up and down.
+- **One continuous, varied session (no sets).** The main part is a run of different exercises grouped into mini full-body circuits of 5–6 moves, with a real rest only between circuits.
+  - **Natural flow:** explosive lifts come first, then each move starts where the last one ended (bell at the hips → at the chest → racked → overhead → floor). The same muscles never get hit back to back, and floor work comes at the end of a circuit.
+  - **Repeats only where it makes sense:** fundamentals such as swings, the goblet squat, deadlift, push-up, row and plank can come back (never within the next circuit). Complex lifts such as the Turkish get-up or windmill don't repeat.
+  - **Always different:** exercises from your last few workouts are pushed down the list, and the circuit makeup varies.
 - **Configurable timing** (Workout tab → Timing):
   - Work time
-  - Rest between exercises
-  - Rest after every *N* exercises (1 = after each, 2 = supersets, …)
-  - Get-ready countdown before each exercise
-  - Rest between rounds and between blocks
+  - Get-ready countdown between exercises
+  - Rest length, and rest after every *N* exercises
+  - Side-switch time
   - Warm-up on/off with a duration (Auto or 2–10 min)
   - Cool-down on/off with a duration (Auto or 2–8 min)
+
+  Changing the timing updates the current workout right away.
+- **One-arm exercises are split in two:** right side, a short switch, then left side. For example, 30 s becomes 15 s + 2 s + 15 s = 32 s.
 - **Interval player:**
   - English voice coach, beeps in the last 3 seconds, vibration, and a "switch sides" cue for one-sided exercises.
   - The screen stays awake.
   - **Skip** controls: skip the exercise, skip the rest, start now, +15s of rest, skip the warm-up, skip to the cool-down, finish now.
+  - **Rest 30s** button: take a break in the middle of any exercise, then continue it where you left off.
 - **Swap any exercise** for another one from the same category; the order is recalculated.
 - **History** with total workouts, total minutes and your day streak, stored on the device.
 

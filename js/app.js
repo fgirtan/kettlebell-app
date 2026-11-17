@@ -28,8 +28,11 @@
   store.settings = Object.assign({}, DEFAULTS.settings, store.settings);
   const S = store.settings;
   delete S.custom; // old format
-  S.timing = Object.assign({}, Generator.DEFAULT_TIMING, Generator.LEVEL_TIMING[S.level], S.timing || {});
-  if (store.plan && (!store.plan.timing || store.plan.warmSec === undefined)) store.plan = null; // plan from an older version
+  // timing format v2 (rest every N exercises, side switch) – reset older saved timing to the new defaults
+  if (!S.timing || S.timing.switch === undefined) S.timing = {};
+  S.timing = Object.assign({}, Generator.DEFAULT_TIMING, Generator.LEVEL_TIMING[S.level], S.timing);
+  store.recent = store.recent || [];
+  if (store.plan && store.plan.v !== 3) store.plan = null; // plan from an older version
   const save = () => { try { localStorage.setItem(KEY, JSON.stringify(store)); } catch (e) { /* storage unavailable */ } };
   save();
 
@@ -65,10 +68,10 @@
   let timingOpen = false;
   function timingSummary() {
     const t = S.timing;
-    const restTxt = t.restEvery > 1 ? `${t.rest}s rest every ${t.restEvery} exercises` : `${t.rest}s rest`;
+    const restTxt = t.restEvery > 1 ? `${t.rest}s rest every ${t.restEvery} exercises` : `${t.rest}s rest after each`;
     const warm = t.warmOn ? `warm-up ${t.warmMin ? t.warmMin + ' min' : 'auto'}` : 'no warm-up';
     const cool = t.coolOn ? `cool-down ${t.coolMin ? t.coolMin + ' min' : 'auto'}` : 'no cool-down';
-    return `${t.work}s work · ${restTxt} · ${t.prep}s get ready · ${t.roundRest}s between rounds · ${warm} · ${cool}`;
+    return `${t.work}s work · ${t.prep}s get ready · ${restTxt} · ${t.switch}s side switch · ${warm} · ${cool}`;
   }
 
   function stepper(key, label, sub, min, max, step, unit) {
@@ -113,11 +116,10 @@
         </button>
         <div id="tBody" ${timingOpen ? '' : 'hidden'}>
           ${stepper('work', 'Work', 'Time on each exercise', 10, 180, 5)}
-          ${stepper('rest', 'Rest between exercises', '', 0, 180, 5)}
-          ${stepper('restEvery', 'Rest after every … exercises', '“every” = after each one; 2 = pairs (supersets)', 1, 8, 1, 'x')}
-          ${stepper('prep', 'Get ready', 'Countdown before each exercise', 0, 30, 5)}
-          ${stepper('roundRest', 'Rest between rounds', '', 0, 300, 15)}
-          ${stepper('blockRest', 'Rest between blocks', 'Long workouts are split into 2–3 blocks', 0, 300, 15)}
+          ${stepper('prep', 'Get ready', 'Short countdown before each exercise', 0, 30, 1)}
+          ${stepper('rest', 'Rest', 'A real break to recover', 0, 180, 5)}
+          ${stepper('restEvery', 'Rest after every … exercises', 'In between you only get the get-ready countdown', 1, 10, 1, 'x')}
+          ${stepper('switch', 'Switch sides', 'One-arm moves: right side, switch, left side', 0, 10, 1)}
           <div class="set-row"><div><div>Warm-up</div><div class="small muted">Mobility &amp; activation before the work</div></div><label class="switch"><input type="checkbox" data-tk="warmOn" ${S.timing.warmOn ? 'checked' : ''}><span></span></label></div>
           <div class="seg-row" ${S.timing.warmOn ? '' : 'hidden'} id="warmSeg">${durSeg('warmMin', [0, 2, 3, 5, 8, 10])}</div>
           <div class="set-row"><div><div>Cool-down</div><div class="small muted">Stretching at the end</div></div><label class="switch"><input type="checkbox" data-tk="coolOn" ${S.timing.coolOn ? 'checked' : ''}><span></span></label></div>
@@ -139,12 +141,17 @@
     $('#dRange').oninput = (e) => setMin(+e.target.value);
     $$('.chip[data-min]').forEach((c) => (c.onclick = () => setMin(+c.dataset.min)));
     $$('#lvl button').forEach((b) => (b.onclick = () => {
-      S.level = +b.dataset.l; Object.assign(S.timing, Generator.LEVEL_TIMING[S.level]); save(); render();
+      S.level = +b.dataset.l; Object.assign(S.timing, Generator.LEVEL_TIMING[S.level]);
+      if (store.plan) Generator.retime(store.plan, S.timing);
+      save(); render();
     }));
     $$('#focus button').forEach((b) => (b.onclick = () => { S.focus = b.dataset.f; save(); $$('#focus button').forEach((x) => x.classList.toggle('on', x === b)); }));
 
     // timing panel
-    const refreshSum = () => { $('#tSum').textContent = timingSummary(); };
+    const refreshSum = () => {
+      $('#tSum').textContent = timingSummary();
+      if (store.plan) { Generator.retime(store.plan, S.timing); save(); renderPreview($('#preview'), store.plan); }
+    };
     $('#tToggle').onclick = () => {
       timingOpen = !timingOpen; $('#tBody').hidden = !timingOpen;
       $('.chev').classList.toggle('open', timingOpen); $('#tToggle').setAttribute('aria-expanded', timingOpen);
@@ -165,14 +172,25 @@
       S.timing[seg.dataset.seg] = +b.dataset.v; save();
       $$('button', seg).forEach((x) => x.classList.toggle('on', x === b)); refreshSum();
     })));
-    $('#tReset').onclick = () => { S.timing = Object.assign({}, Generator.DEFAULT_TIMING, Generator.LEVEL_TIMING[S.level]); save(); render(); toast('Timing reset'); };
+    $('#tReset').onclick = () => {
+      S.timing = Object.assign({}, Generator.DEFAULT_TIMING, Generator.LEVEL_TIMING[S.level]);
+      if (store.plan) Generator.retime(store.plan, S.timing);
+      save(); render(); toast('Timing reset');
+    };
 
     $('#gen').onclick = () => {
-      store.plan = Generator.generate({ minutes: S.minutes, level: S.level, focus: S.focus, timing: S.timing });
+      store.plan = Generator.generate({ minutes: S.minutes, level: S.level, focus: S.focus, timing: S.timing, recent: recentIds() });
+      store.recent.push(store.plan.segments.flat().concat(store.plan.warm, store.plan.cool));
+      store.recent = store.recent.slice(-3);
       save(); render();
       setTimeout(() => $('#preview').scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
     };
     if (store.plan) renderPreview($('#preview'), store.plan);
+  }
+
+  // Exercises from the last few generated workouts and the last two finished ones – avoided next time
+  function recentIds() {
+    return [...store.recent.flat(), ...store.history.slice(-2).flatMap((h) => h.ex)];
   }
 
   function exItem(id, idx, opts) {
@@ -196,16 +214,17 @@
     const iv = Generator.buildIntervals(plan);
     const total = iv.reduce((s, x) => s + x.dur, 0);
     const workSec = iv.filter((x) => x.phase === 'work').reduce((s, x) => s + x.dur, 0);
-    const nEx = plan.blocks.reduce((s, b) => s + b.ex.length, 0);
+    const nEx = plan.segments.flat().length;
+    const nUnique = new Set(plan.segments.flat()).size;
     const t = plan.timing;
     root.innerHTML = `
       <div style="height:18px"></div>
       <div class="summary">
         <div><b>${fmtMin(total)}</b><span>total</span></div>
         <div><b>${fmtMin(workSec)}</b><span>work</span></div>
-        <div><b>${nEx}</b><span>exercises</span></div>
+        <div><b>${nEx}</b><span>${nUnique < nEx ? nUnique + ' different' : 'all different'}</span></div>
       </div>
-      <div class="flow-note">Built for flow: explosive and technical lifts come first while you're fresh, lower and upper body alternate so one area recovers while the other works, and core and floor work come last.</div>
+      <div class="flow-note">One continuous session, no sets. Each circuit is a mini full-body flow: explosive lifts first, then each move starts where the last one ended (bell at the hips → chest → racked → overhead → floor), never hitting the same muscles back to back. Only basics like swings repeat. A real ${t.rest}s rest comes after every ${t.restEvery} exercises; tap <b>Rest 30s</b> in the player whenever you need one.</div>
     `;
     const head = (title, sub) => { const h = document.createElement('div'); h.className = 'block-head'; h.innerHTML = `<h3>${title}</h3><span class="small muted">${sub}</span>`; root.appendChild(h); };
     const list = () => { const l = document.createElement('div'); l.className = 'ex-list'; root.appendChild(l); return l; };
@@ -215,11 +234,12 @@
       const l = list(); plan.warm.forEach((id) => l.appendChild(exItem(id)));
     }
 
-    plan.blocks.forEach((b, bi) => {
-      head(plan.blocks.length > 1 ? `Block ${bi + 1}` : 'Main workout', `${b.rounds} ${b.rounds === 1 ? 'round' : 'rounds'} · ${t.work}s on / ${t.rest}s off${t.restEvery > 1 ? ` every ${t.restEvery}` : ''}`);
+    let num = 0;
+    plan.segments.forEach((seg, si) => {
+      head(`Circuit ${si + 1}`, `${seg.length} exercises · ${t.work}s each${si < plan.segments.length - 1 && t.rest ? ` · then ${t.rest}s rest` : ''}`);
       const l = list();
-      b.ex.forEach((id, i) => l.appendChild(exItem(id, i + 1, {
-        onSwap: () => { Generator.swap(plan, bi, i); save(); renderPreview(root, plan); toast('Exercise swapped'); },
+      seg.forEach((id, i) => l.appendChild(exItem(id, ++num, {
+        onSwap: () => { Generator.swap(plan, si, i, recentIds()); save(); renderPreview(root, plan); toast('Exercise swapped'); },
       })));
     });
 
@@ -231,7 +251,7 @@
     const st = document.createElement('div');
     st.className = 'sticky-start';
     st.innerHTML = `<button class="btn primary block big">${ICON.play.replace('<svg', '<svg fill="currentColor"')} Start · ${fmtMin(total)}</button>`;
-    st.querySelector('button').onclick = () => Player.start(plan);
+    st.querySelector('button').onclick = () => { Generator.retime(plan, S.timing); save(); Player.start(plan); };
     root.appendChild(st);
   }
 
@@ -379,7 +399,7 @@
   if (window.speechSynthesis) speechSynthesis.onvoiceschanged = () => { Fx.voiceObj = null; };
 
   // ---------- Player ----------
-  const PHASE = { prep: 'Get ready', warmup: 'Warm-up', work: 'Work', rest: 'Rest', cooldown: 'Cool-down' };
+  const PHASE = { prep: 'Get ready', warmup: 'Warm-up', work: 'Work', rest: 'Rest', cooldown: 'Cool-down', switch: 'Switch sides' };
   const Player = {
     start(plan) {
       Fx.unlock();
@@ -423,6 +443,7 @@
       const box = $('.p-skips', this.el);
       const btns = [];
       if (x.phase === 'rest' || x.phase === 'prep') { btns.push(['startNow', x.phase === 'rest' ? 'Skip rest' : 'Start now']); if (x.phase === 'rest') btns.push(['add15', '+15s']); }
+      if (x.phase === 'work' || x.phase === 'warmup') btns.push(['rest30', 'Rest 30s']);
       if (x.phase === 'warmup' || (x.phase === 'prep' && this.iv[this.idx + 1] && this.iv[this.idx + 1].phase === 'warmup')) btns.push(['skipWarm', 'Skip warm-up']);
       if (x.phase === 'work' && this.iv.some((y, i) => i > this.idx && y.phase === 'cooldown')) btns.push(['toCool', 'Skip to cool-down']);
       if (x.phase === 'cooldown') btns.push(['finish', 'Finish now']);
@@ -436,6 +457,17 @@
       if (k === 'skipWarm') { const i = findFrom((y) => y.phase !== 'warmup' && y.phase !== 'prep'); return this.goTo(i < 0 ? this.iv.length - 1 : Math.max(this.idx + 1, i - 1)); }
       if (k === 'toCool') { const i = findFrom((y) => y.phase === 'cooldown'); if (i > 0) return this.goTo(this.iv[i - 1].phase === 'prep' ? i - 1 : i); }
       if (k === 'finish') return this.finish();
+      if (k === 'rest30') {
+        // Pause the current exercise with a 30s break, then continue it with the time that was left
+        const x = this.iv[this.idx];
+        const left = Math.max(1, Math.round(this.remain));
+        const cont = Object.assign({}, x, { dur: left, sideSwitch: false });
+        x.dur = Math.max(0, Math.round(x.dur - this.remain));
+        this.iv.splice(this.idx + 1, 0, { phase: 'rest', ex: x.ex, dur: 30, label: 'Extra rest', next: x.ex }, cont);
+        this.total = this.iv.reduce((sum, y) => sum + y.dur, 0);
+        this.extraRest = true;
+        return this.enter(this.idx + 1);
+      }
     },
     goTo(i) {
       this.skipped += this.remain + this.iv.slice(this.idx + 1, i).reduce((s, y) => s + y.dur, 0);
@@ -446,17 +478,17 @@
       const x = this.iv[i];
       this.remain = x.dur; this.lastBeep = null;
       this.elapsedBefore = this.iv.slice(0, i).reduce((s, y) => s + y.dur, 0);
-      const isRest = x.phase === 'rest' || x.phase === 'prep';
+      const isRest = x.phase === 'rest' || x.phase === 'prep' || x.phase === 'switch';
       const e = EX[x.ex];
       this.el.classList.toggle('rest', x.phase === 'rest');
-      this.el.classList.toggle('prep', x.phase === 'prep');
+      this.el.classList.toggle('prep', x.phase === 'prep' || x.phase === 'switch');
       this.el.classList.toggle('cool', x.phase === 'cooldown');
       $('.p-phase', this.el).textContent = PHASE[x.phase];
       $('.p-label', this.el).textContent = x.label || '';
-      $('.p-name', this.el).textContent = (isRest ? 'Next: ' : '') + e.name;
+      $('.p-name', this.el).textContent = (x.phase === 'switch' ? 'Left side next · ' : isRest ? 'Next: ' : '') + e.name;
       const badge = $('.p-badge', this.el);
       if (x.side && !isRest) { badge.hidden = false; badge.textContent = x.side; badge.classList.toggle('alt', x.side === 'Alternate'); }
-      else if (isRest && e.uni) { badge.hidden = false; badge.textContent = 'Each side'; badge.classList.add('alt'); }
+      else if (isRest && e.uni && x.phase !== 'switch') { badge.hidden = false; badge.textContent = 'Right side first'; badge.classList.add('alt'); }
       else badge.hidden = true;
       $('.p-cue', this.el).textContent = e.cues[0] || '';
       this.cueIdx = 0;
@@ -469,7 +501,10 @@
 
       if (x.phase === 'prep') {
         Fx.beep(520, 0.2); Fx.buzz(80);
-        Fx.say(first ? `Get ready. First up: ${e.name}` : `Get ready. ${e.name}${e.uni ? ', left side first' : ''}`);
+        Fx.say(first ? `Get ready. First up: ${e.name}` : `Get ready. ${e.name}${e.uni ? ', right side first' : ''}`);
+      } else if (x.phase === 'switch') {
+        Fx.beep(880, 0.12); Fx.beep(880, 0.12, 0.25, 0.18); Fx.buzz([80, 60, 80]);
+        Fx.say('Switch sides');
       } else if (x.phase === 'rest') {
         Fx.beep(440, 0.3); Fx.buzz(150);
         Fx.say(`Rest. Next up: ${e.name}`);
@@ -478,8 +513,11 @@
         Fx.say('Switch sides');
       } else {
         Fx.beep(990, 0.35); Fx.buzz(200);
-        const prevPrep = i > 0 && this.iv[i - 1].phase === 'prep' && this.iv[i - 1].ex === x.ex;
-        Fx.say(prevPrep ? 'Go!' : `${e.name}${x.side === 'Left side' ? ', left side' : x.side === 'Alternate' ? ', alternating' : ''}. Go!`);
+        const prev = i > 0 ? this.iv[i - 1] : null;
+        if (prev && prev.phase === 'switch') Fx.say('Left side. Go!');
+        else if (prev && prev.phase === 'rest' && prev.label === 'Extra rest') Fx.say('Back to it. Go!');
+        else if (prev && prev.phase === 'prep' && prev.ex === x.ex) Fx.say(x.side === 'Right side' ? 'Right side. Go!' : 'Go!');
+        else Fx.say(`${e.name}${x.side === 'Right side' ? ', right side' : x.side === 'Left side' ? ', left side' : x.side === 'Alternate' ? ', alternating' : ''}. Go!`);
       }
     },
     renderTime() {
@@ -523,7 +561,7 @@
     record(done) {
       const sec = Math.round(this.doneSec());
       if (sec < 120) return;
-      store.history.push({ date: Date.now(), sec, minutes: this.plan.minutes, focus: this.plan.focus, level: this.plan.level, ex: this.plan.blocks.flatMap((b) => b.ex), done });
+      store.history.push({ date: Date.now(), sec, minutes: this.plan.minutes, focus: this.plan.focus, level: this.plan.level, ex: [...new Set(this.plan.segments.flat())], done });
       save();
     },
     exit() {
@@ -539,7 +577,7 @@
       Fx.say('Workout complete. Great job!');
       const sec = Math.round(this.doneSec());
       this.el.innerHTML = `<div class="p-done"><div class="big">💪</div><h2>Workout complete!</h2>
-        <p class="muted">${fmtMin(sec)} · ${this.plan.blocks.reduce((s, b) => s + b.ex.length, 0)} exercises · ${Generator.FOCUS_LABEL[this.plan.focus]}</p>
+        <p class="muted">${fmtMin(sec)} · ${this.plan.segments.flat().length} exercises · ${Generator.FOCUS_LABEL[this.plan.focus]}</p>
         <button class="btn primary big" id="pOk" style="min-width:220px">Done</button></div>`;
       $('#pOk').onclick = () => { this.close(); tab = 'history'; render(); };
     },
