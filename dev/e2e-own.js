@@ -1,0 +1,20 @@
+const { chromium, devices } = require('playwright');
+(async()=>{const S=process.argv[2];const b=await chromium.launch({args:['--autoplay-policy=no-user-gesture-required']});const c=await b.newContext({...devices['iPhone 13'],colorScheme:'dark'});
+const p=await c.newPage();const errs=[];p.on('pageerror',e=>errs.push(e.message));p.on('console',m=>{if(m.type()==='error')errs.push(m.text())});
+let popup=null;c.on('page',pg=>{popup=pg.url()});
+p.on('dialog',d=>d.accept());
+await p.goto('http://localhost:8765/');await p.waitForTimeout(400);
+await p.tap('[data-tab=library]');await p.waitForTimeout(400);
+await p.tap('#libList .ex-item .info');await p.waitForTimeout(600);  // Two-Hand Swing
+await p.setInputFiles('#addOwn input', S+'/clip.mp4');await p.waitForTimeout(1500);
+await p.screenshot({path:S+'/o-sheet.png'});
+const hasVid=await p.evaluate(()=>!!document.querySelector('.sheet .stage video'));
+await p.tap('#watchDemo');await p.waitForTimeout(800);
+await p.tap('#shClose');await p.waitForTimeout(300);
+const thumbVid=await p.evaluate(()=>!!document.querySelector('#libList .ex-item .thumb video'));
+await p.reload();await p.waitForTimeout(800);
+await p.tap('[data-tab=library]');await p.waitForTimeout(600);
+const persisted=await p.evaluate(()=>!!document.querySelector('#libList .ex-item .thumb video'));
+await p.tap('#libList .ex-item .info');await p.waitForTimeout(500);await p.tap('#removeOwn');await p.waitForTimeout(800);
+const removed=await p.evaluate(()=>!document.querySelector('.sheet .stage video'));
+console.log('sheet video',hasVid,'| thumb',thumbVid,'| after reload',persisted,'| removed',removed,'| youtube popup',popup&&popup.slice(0,60),'| errors:',errs.join('\n')||'none');await b.close();})();

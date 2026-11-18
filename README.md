@@ -57,6 +57,8 @@ A separate **Recovery** tab for quiet, equipment-free sessions (fine for an apar
 - **Real photos:** 41 exercises show photos of a real person in the start and end position, cross-fading. They come from [free-exercise-db](https://github.com/yuhonas/free-exercise-db), which is public domain (Unlicense), and are stored in `photos/`, mapped in `js/photos.js`. Only entries that clearly match the movement and equipment were used.
 - **Animated figure:** every other exercise uses an animated figure with skin, shirt, pants, shoes and a face showing which way the person looks; far-side limbs are faded.
 - **Switching:** Settings → Exercise visuals, or the toggle on each exercise page, switches between photos and the animation.
+- **Watch real demo:** a button on every exercise page opens real demonstration videos on YouTube (needs internet).
+- **Your own video or photo:** attach one to any exercise (*＋ Add my video/photo*). It is stored on the device (IndexedDB), works offline, and replaces the photo or animation in the list, the exercise page and the player.
 
 ## Voice
 

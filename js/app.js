@@ -210,7 +210,9 @@
     d.innerHTML = `${idx !== undefined ? `<div class="num">${idx}</div>` : ''}<div class="thumb"></div>
       <div class="info"><div class="name">${e.name}</div><div class="meta">${regionTag(e)}${e.muscles.slice(0, 3).join(', ')}${sideNote(e)}</div></div>`;
     const pk = photoKey(id);
-    if (pk) d.querySelector('.thumb').appendChild(photoEl(pk, true));
+    const own = Media.element(id, { still: true });
+    if (own) d.querySelector('.thumb').appendChild(own);
+    else if (pk) d.querySelector('.thumb').appendChild(photoEl(pk, true));
     else { const svg = svgFig(); d.querySelector('.thumb').appendChild(svg); Figure.still(svg, e.anim); }
     d.querySelector('.info').onclick = () => openSheet(id);
     d.querySelector('.thumb').onclick = () => openSheet(id);
@@ -279,6 +281,11 @@
       <h2>${e.name}</h2>
       <p style="margin:10px 0 4px">${regionTag(e)}<span class="tag">${CAT_LABEL[e.cat]}</span><span class="tag">${LEVEL_LABEL[e.level]}</span>${e.uni ? '<span class="tag">each side</span>' : ''}${e.alt ? '<span class="tag">alternating</span>' : ''}${e.floor ? '<span class="tag">on the floor</span>' : ''}${e.bw ? '<span class="tag">bodyweight</span>' : ''}</p>
       <p class="small muted" style="margin:6px 0 0">Muscles: ${e.muscles.join(', ')}</p>
+      <div class="media-actions">
+        <button class="btn ghost" id="watchDemo">▶ Watch real demo</button>
+        <label class="btn ghost" id="addOwn">＋ ${Media.get(id) ? 'Replace my video' : 'Add my video/photo'}<input type="file" accept="video/*,image/*" hidden></label>
+        ${Media.get(id) ? '<button class="btn ghost" id="removeOwn">Remove mine</button>' : ''}
+      </div>
       <p class="label" style="margin-top:16px">How to do it</p>
       <ol>${e.cues.map((c) => `<li>${c}</li>`).join('')}</ol>
       ${e.avoid ? `<div class="avoid"><b>Avoid:</b> ${e.avoid}</div>` : ''}
@@ -291,7 +298,29 @@
       if (pk) { stage.appendChild(photoEl(pk)); const t = document.createElement('span'); t.className = 'ph-tag'; t.textContent = 'start ⇄ end position'; stage.querySelector('.ph').appendChild(t); }
       else { stage.appendChild(svg); Figure.animate(svg, e.anim); }
     };
-    showVis(S.visual === 'figure' ? 'figure' : 'photo');
+    const showOwn = () => {
+      const own = Media.element(id);
+      if (!own) return false;
+      const stage = sh.querySelector('.stage'); stage.innerHTML = ''; Figure.stop(svg); stage.classList.add('photo');
+      const t = document.createElement('span'); t.className = 'ph-tag'; t.textContent = 'your video'; own.appendChild(t);
+      stage.appendChild(own);
+      const vs = $('#visSeg', sh); if (vs) vs.hidden = true;
+      return true;
+    };
+    if (!showOwn()) showVis(S.visual === 'figure' ? 'figure' : 'photo');
+    $('#watchDemo', sh).onclick = () => {
+      const q = e.cat === 'recovery' || e.cat === 'stretch' || e.cat === 'warmup' ? `${e.name} how to` : `${e.name} kettlebell exercise technique`;
+      window.open('https://www.youtube.com/results?search_query=' + encodeURIComponent(q), '_blank', 'noopener');
+    };
+    $('#addOwn input', sh).onchange = async (ev) => {
+      const f = ev.target.files && ev.target.files[0];
+      if (!f) return;
+      if (f.size > 60 * 1024 * 1024) { toast('That file is over 60 MB – trim it to a short clip first'); return; }
+      try { await Media.put(id, f); toast('Saved – shown for this exercise from now on'); close(); openSheet(id); render(); }
+      catch (err) { toast('Could not save the file on this device'); }
+    };
+    const rm = $('#removeOwn', sh);
+    if (rm) rm.onclick = async () => { await Media.remove(id); toast('Removed'); close(); openSheet(id); render(); };
     $$('#visSeg button', sh).forEach((b) => (b.onclick = () => {
       S.visual = b.dataset.v; save(); $$('#visSeg button', sh).forEach((x) => x.classList.toggle('on', x === b)); showVis(S.visual);
     }));
@@ -390,6 +419,7 @@
       <div class="card"><p class="label">Exercise visuals</p>
         <div class="seg" id="visual">${[['photo', 'Real photos'], ['figure', 'Animation']].map(([k, l]) => `<button data-v="${k}" class="${(S.visual === 'figure' ? 'figure' : 'photo') === k ? 'on' : ''}">${l}</button>`).join('')}</div>
         <p class="small muted" style="margin:10px 2px 0">Real photos (start ⇄ end position) are shown for ${Object.keys(self.PHOTOS || {}).length} exercises; the others use the animated figure. Photos: free-exercise-db, public domain.</p>
+        <p class="small muted" style="margin:8px 2px 0">You can add your own video or photo to any exercise from its page (＋ Add my video/photo); it then replaces the photo or animation everywhere, offline too. ${Media.count() ? `You have added ${Media.count()}.` : ''}</p>
       </div>
       <div class="card"><p class="label">Timing</p>
         <p class="small muted" style="margin:0">Work, rest, get-ready time, warm-up and cool-down are set on the Workout tab, under <b>Timing</b>.</p>
@@ -701,7 +731,14 @@
       const nx = x.next ? EX[x.next] : null;
       $('.p-next', this.el).textContent = !isRest && nx ? 'Up next: ' + nx.name : '';
       const pk = photoKey(e.id);
-      if (pk) {
+      const ownM = Media.get(e.id);
+      if (this.own) { this.own.remove(); this.own = null; }
+      if (ownM) {
+        Figure.stop(this.svg); this.svg.style.display = 'none'; this.ph.hidden = true;
+        this.own = Media.element(e.id);
+        $('.p-stage', this.el).appendChild(this.own);
+        const v = this.own.querySelector('video'); if (v && !this.running) v.pause();
+      } else if (pk) {
         Figure.stop(this.svg); this.svg.style.display = 'none'; this.ph.hidden = false;
         const [a, b] = this.ph.querySelectorAll('img');
         if (a.dataset.k !== pk) { a.src = `photos/${pk}_0.jpg`; b.src = `photos/${pk}_1.jpg`; a.dataset.k = pk; }
@@ -797,6 +834,7 @@
       $('#pPlay').setAttribute('aria-label', this.running ? 'Pause' : 'Resume');
       Figure.setPaused(this.svg, !this.running);
       if (this.ph) this.ph.classList.toggle('paused', !this.running);
+      const ov = this.own && this.own.querySelector('video'); if (ov) { if (this.running) ov.play().catch(() => {}); else ov.pause(); }
       if (this.running) { Fx.unlock(); this.wake(); } else Fx.say('Paused');
     },
     jump(d) {
@@ -882,6 +920,7 @@
   }, { passive: false });
 
   render();
+  Media.init().then((n) => { if (n) render(); });
 
   if ('serviceWorker' in navigator && location.protocol !== 'file:') {
     window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
