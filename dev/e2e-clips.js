@@ -1,0 +1,15 @@
+const { chromium, devices } = require('playwright');
+(async()=>{const b=await chromium.launch({args:['--autoplay-policy=no-user-gesture-required']});const c=await b.newContext({...devices['iPhone 13']});
+const p=await c.newPage();const errs=[],bad=[];let ok=0;const voices=new Set();
+p.on('pageerror',e=>errs.push(e.message));p.on('console',m=>{if(m.type()==='error'||m.text().includes('no recorded clip'))errs.push(m.text())});
+p.on('response',r=>{const u=r.url();if(u.includes('/audio/')){if(r.status()>=400)bad.push(u);else{ok++;voices.add(u.split('/audio/')[1].split('/')[0]);}}});
+p.on('dialog',d=>d.accept());
+await p.goto('http://localhost:8765/');await p.waitForTimeout(400);
+await p.tap('[data-tab=settings]');await p.waitForTimeout(300);
+await p.tap('#vEngine [data-v=m]');await p.waitForTimeout(1500);
+await p.tap('#testVoice');await p.waitForTimeout(1500);
+const playing=await p.evaluate(()=>{const a=[...document.querySelectorAll('audio')];return a.length});
+await p.tap('[data-tab=boxing]');await p.waitForTimeout(300);
+await p.tap('[data-bstep=prep][data-d="-5"]');await p.tap('[data-bstep=prep][data-d="-5"]');
+await p.tap('#bStart');await p.waitForTimeout(8000);
+console.log('clip fetches ok',ok,'voices',[...voices].join(','),'404s',bad.length,'| errors:',errs.join('\n')||'none');await b.close();})();

@@ -18,7 +18,7 @@
   // ---------- Storage ----------
   const KEY = 'kettlebell.v1';
   const DEFAULTS = {
-    settings: { minutes: 30, level: 1, focus: 'full', sound: true, voice: true, vibrate: true, theme: 'auto', voiceName: '', voiceRate: 1, voiceVol: 1, prepCue: 'ticks', silentMode: true, voiceEngine: 'clips' },
+    settings: { minutes: 30, level: 1, focus: 'full', sound: true, voice: true, vibrate: true, theme: 'auto', voiceName: '', voiceRate: 1, voiceVol: 1, prepCue: 'ticks', silentMode: true, voiceEngine: 'clips', clipVoice: 'f' },
     plan: null,
     history: [],
   };
@@ -341,8 +341,8 @@
       <div class="card"><p class="label">Sound &amp; feedback</p>
         ${sw('voice', 'Voice coach', 'Announces the next exercise, which side starts, “switch hands” and rests')}
         <div id="voiceBox" ${S.voice ? '' : 'hidden'}>
-          <div class="set-row"><div><div>Voice</div><div class="small muted">Recorded works with the phone on silent</div></div>
-            <div class="seg mini" id="vEngine" style="min-width:190px">${[['clips', 'Recorded'], ['device', 'Phone voice']].map(([v, l]) => `<button data-v="${v}" class="${S.voiceEngine === v ? 'on' : ''}">${l}</button>`).join('')}</div></div>
+          <div class="set-row"><div><div>Voice</div><div class="small muted">Female / Male are recorded and work with the phone on silent</div></div>
+            <div class="seg mini" id="vEngine" style="min-width:200px">${[['f', 'Female'], ['m', 'Male'], ['device', 'Phone']].map(([v, l]) => `<button data-v="${v}" class="${(S.voiceEngine === 'device' ? 'device' : S.clipVoice) === v ? 'on' : ''}">${l}</button>`).join('')}</div></div>
           <div class="set-row" id="voiceSelRow" ${S.voiceEngine === 'device' ? '' : 'hidden'}><div>Phone voice</div><select id="voiceSel" class="select"></select></div>
           <div class="set-row"><div>Speed</div><div class="seg mini" id="vRate" style="min-width:180px">${[[0.9, 'Calm'], [1, 'Normal'], [1.15, 'Fast']].map(([v, l]) => `<button data-v="${v}" class="${S.voiceRate == v ? 'on' : ''}">${l}</button>`).join('')}</div></div>
           <div class="set-row"><div>Volume</div><input type="range" id="vVol" min="0.3" max="1" step="0.1" value="${S.voiceVol}" style="max-width:160px"></div>
@@ -386,7 +386,8 @@
     fillVoices();
     if (window.speechSynthesis) speechSynthesis.addEventListener('voiceschanged', fillVoices);
     $$('#vEngine button').forEach((b) => (b.onclick = () => {
-      S.voiceEngine = b.dataset.v; save(); $$('#vEngine button').forEach((x) => x.classList.toggle('on', x === b));
+      if (b.dataset.v === 'device') S.voiceEngine = 'device'; else { S.voiceEngine = 'clips'; S.clipVoice = b.dataset.v; }
+      save(); $$('#vEngine button').forEach((x) => x.classList.toggle('on', x === b));
       $('#voiceSelRow').hidden = S.voiceEngine !== 'device'; fillVoices(); Fx.unlock(); Fx.say('Next up: goblet squat.');
     }));
     $('#voiceSel').onchange = (e) => { S.voiceName = e.target.value; Fx.voiceObj = null; save(); Fx.unlock(); Fx.say('Next up: goblet squat.'); };
@@ -467,8 +468,9 @@
       return keys.length && keys.every((k) => this.clipSet.has(k)) ? keys : null;
     },
     clip(k) {
-      if (!this.clipCache.has(k)) this.clipCache.set(k, fetch(`audio/${k}.mp3`).then((r) => { if (!r.ok) throw new Error(k); return r.arrayBuffer(); }));
-      return this.clipCache.get(k);
+      const id = `${S.clipVoice === 'm' ? 'm' : 'f'}/${k}`;
+      if (!this.clipCache.has(id)) this.clipCache.set(id, fetch(`audio/${id}.mp3`).then((r) => { if (!r.ok) throw new Error(id); return r.arrayBuffer(); }));
+      return this.clipCache.get(id);
     },
     ensureVoiceEl() {
       if (this.voiceEl) return this.voiceEl;
@@ -497,7 +499,7 @@
       if (this.voiceEl) try { this.voiceEl.pause(); } catch (e) { /* ignore */ }
       if (window.speechSynthesis) try { speechSynthesis.cancel(); } catch (e) { /* ignore */ }
     },
-    prefetchClips() { if (!this._prefetched) { this._prefetched = true; [...this.clipSet].forEach((k) => this.clip(k).catch(() => {})); } },
+    prefetchClips() { const v = S.clipVoice; if (this._prefetched !== v) { this._prefetched = v; [...this.clipSet].forEach((k) => this.clip(k).catch(() => {})); } },
     // Subtle get-ready cues
     tick() { this.beep(1400, 0.025, 0.05); },
     countdown(n) {

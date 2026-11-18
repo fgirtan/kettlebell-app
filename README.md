@@ -45,13 +45,13 @@ A separate **Boxing** tab:
 
 ## Voice
 
-The coach uses **recorded voice clips** (`audio/*.mp3`, generated with the open-source Piper TTS, "Lessac" voice). They play like music, so you hear them **even when an iPhone is on silent**. Settings → Voice → *Phone voice* switches to the phone's built-in speech instead; that one is muted on silent.
+The coach uses **recorded voice clips** generated with the open-source **Kokoro** TTS: a female voice ("Heart", `audio/f/`) and a male voice ("Michael", `audio/m/`). They play like music, so you hear them **even when an iPhone is on silent**. Settings → Voice lets you pick *Female*, *Male* or *Phone*; the phone voice uses the built-in speech, which is muted on silent.
 
 To regenerate the clips after adding exercises or phrases:
 
 ```bash
 node dev/phrases.js > phrases.json
-python dev/make_voice.py en-us-lessac-medium.onnx phrases.json audio
+python dev/make_voice_kokoro.py kokoro-v1.0.onnx voices-v1.0.bin phrases.json audio
 ```
 
 Then rebuild `js/voice-index.js` (the list of clip keys) and bump `VERSION` in `sw.js`.
