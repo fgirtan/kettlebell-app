@@ -5,7 +5,7 @@
 
   const DEFAULTS = {
     mode: 'rounds', rounds: 3, roundSec: 180, restSec: 60, totalMin: 15,
-    level: 2, pace: 0, terms: 'lr', stance: 'orth', defense: true, body: true, bursts: true, prep: 10,
+    level: 2, pace: 0, terms: 'classic', stance: 'orth', defense: true, body: true, bursts: true, prep: 10,
   };
   const LEVELS = {
     1: { label: 'Beginner', len: [1, 3], gap: 3.2, defense: 0.12, power: 0.25, body: 0.05 },
@@ -26,10 +26,11 @@
     const lead = cfg.stance === 'orth' ? 'L' : 'R';
     if (m.kind === 'strike') {
       if (cfg.terms === 'classic') {
+        // boxing gym wording: straights from the lead hand are jabs, from the rear hand crosses;
+        // hooks and uppercuts are named by hand ("left hook", "right uppercut")
         const isLead = m.side === lead;
-        const name = { short: isLead ? 'jab' : 'rear jab', long: isLead ? 'lead straight' : 'cross',
-          hook: isLead ? 'lead hook' : 'rear hook', uppercut: isLead ? 'lead uppercut' : 'rear uppercut' }[m.type];
-        return (m.double ? 'double ' : '') + name + (m.body ? ' to the body' : '');
+        const name = m.type === 'short' || m.type === 'long' ? (isLead ? 'jab' : 'cross') : `${sideWord(m.side)} ${m.type}`;
+        return (m.double && name === 'jab' ? 'double ' : '') + name + (m.body ? ' to the body' : '');
       }
       // left/right wording: "short left", "long right", "hook left", "uppercut right"
       const base = m.type === 'short' || m.type === 'long' ? `${m.type} ${sideWord(m.side)}` : `${m.type} ${sideWord(m.side)}`;
@@ -37,6 +38,20 @@
     }
     return { duck: 'duck', duckL: 'duck left', duckR: 'duck right', block: 'block', stepBack: 'step back',
       pivotL: 'pivot left', pivotR: 'pivot right' }[m.type];
+  }
+
+  // Text for a whole combo; two identical calls in a row become "double …" (e.g. "double jab")
+  function comboParts(combo, cfg) {
+    const out = [];
+    for (const m of combo) {
+      const text = moveText(m, cfg);
+      const prev = out[out.length - 1];
+      if (prev && prev.text === text && m.kind === 'strike') {
+        // "double jab" is a real call; anything else repeated (e.g. two crosses) is simply dropped
+        if (!text.startsWith('double') && (text === 'jab' || cfg.terms === 'lr')) prev.text = 'double ' + text;
+      } else out.push({ text, kind: m.kind });
+    }
+    return out;
   }
 
   // ---------- Combo generator ----------
@@ -153,6 +168,8 @@
   function cfgOf(api) {
     const S = api.S;
     S.boxing = Object.assign({}, DEFAULTS, S.boxing || {});
+    if (!S.boxing.v2) { S.boxing.terms = 'classic'; S.boxing.stance = 'orth'; S.boxing.v2 = true; } // jab/cross by default
+    S.boxing.stance = 'orth'; // stance option hidden for now
     return S.boxing;
   }
 
@@ -194,8 +211,7 @@
       </div>
       <div class="card">
         <p class="label">Calls</p>
-        <div class="set-row"><div>Wording</div><div style="min-width:200px">${seg('terms', [['lr', 'Short / long'], ['classic', 'Jab / cross']])}</div></div>
-        <div class="set-row"><div>Stance</div><div style="min-width:200px">${seg('stance', [['orth', 'Orthodox'], ['south', 'Southpaw']])}</div></div>
+        <div class="set-row"><div>Wording</div><div style="min-width:200px">${seg('terms', [['classic', 'Jab / cross'], ['lr', 'Short / long']])}</div></div>
         ${sw('defense', 'Defense moves', 'Duck, duck left/right, block, step back, pivot')}
         ${sw('body', 'Body shots', 'e.g. “long right body”')}
         ${sw('bursts', 'Bursts & tips', 'Short freestyle bursts and quick reminders like “hands up”')}
@@ -206,7 +222,7 @@
     `;
     const sample = () => {
       const combo = generateCombo(c);
-      const txt = combo.map((m) => moveText(m, c)).join(', ');
+      const txt = comboParts(combo, c).map((x) => x.text).join(', ');
       $('#bSample').textContent = 'Example: ' + txt;
       return txt;
     };
@@ -323,9 +339,9 @@
       }
       const combo = generateCombo(c);
       this.combos++;
-      const parts = combo.map((m) => moveText(m, c));
-      this.show(combo.map((m, k) => `<span class="bx-move ${m.kind}">${parts[k]}</span>`).join('<span class="bx-sep">›</span>'), '');
-      const spoken = parts.join(', ');
+      const parts = comboParts(combo, c);
+      this.show(parts.map((x) => `<span class="bx-move ${x.kind}">${x.text}</span>`).join('<span class="bx-sep">›</span>'), '');
+      const spoken = parts.map((x) => x.text).join(', ');
       Fx.say(spoken, true);
       // time to hear it + throw it + recover
       const speech = spoken.split(/\s+/).length * 0.3 / (this.api.S.voiceRate || 1);
@@ -416,5 +432,5 @@
     },
   };
 
-  global.Boxing = { render, generateCombo, moveText, LEVELS, DEFAULTS };
+  global.Boxing = { render, generateCombo, moveText, comboParts, LEVELS, DEFAULTS };
 })(window);
