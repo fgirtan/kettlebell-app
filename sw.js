@@ -1,12 +1,13 @@
 // Offline-first service worker. Bump VERSION when files change.
-const VERSION = 'kb-v7';
+importScripts('js/voice-index.js');
+const VERSION = 'kb-v8';
 const ASSETS = [
   './', 'index.html', 'manifest.webmanifest', 'css/styles.css',
-  'js/figure.js', 'js/anims.js', 'js/exercises.js', 'js/generator.js', 'js/boxing.js', 'js/app.js',
+  'js/voice-index.js', 'js/figure.js', 'js/anims.js', 'js/exercises.js', 'js/generator.js', 'js/boxing.js', 'js/app.js',
   'icons/icon.svg', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/maskable-512.png', 'icons/apple-touch-icon.png',
 ];
 self.addEventListener('install', (e) => {
-  e.waitUntil(caches.open(VERSION).then((c) => c.addAll(ASSETS)).then(() => self.skipWaiting()));
+  e.waitUntil(caches.open(VERSION).then((c) => c.addAll(ASSETS.concat((self.VOICE_CLIPS || []).map((k) => `audio/${k}.mp3`)))).then(() => self.skipWaiting()));
 });
 self.addEventListener('activate', (e) => {
   e.waitUntil(caches.keys().then((keys) => Promise.all(keys.filter((k) => k !== VERSION).map((k) => caches.delete(k)))).then(() => self.clients.claim()));

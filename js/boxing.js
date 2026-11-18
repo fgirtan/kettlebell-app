@@ -260,7 +260,7 @@
       this.api = api;
       const { Fx, ICON, $ } = api;
       Fx.unlock();
-      if (global.speechSynthesis) speechSynthesis.cancel();
+      Fx.stopVoice();
       const c = this.cfg = Object.assign({}, cfgOf(api));
       this.iv = [];
       if (c.prep) this.iv.push({ phase: 'prep', dur: c.prep, label: 'Get ready' });
@@ -390,7 +390,7 @@
       const { Fx, ICON, $ } = this.api;
       this.running = !this.running; this.last = performance.now();
       $('#bPlay .ic').innerHTML = this.running ? ICON.pause : ICON.play;
-      if (this.running) { Fx.unlock(); this.wake(); } else { if (global.speechSynthesis) speechSynthesis.cancel(); Fx.say('Paused', true); }
+      if (this.running) { Fx.unlock(); this.wake(); } else { Fx.stopVoice(); Fx.say('Paused', true); }
     },
     jump(d) {
       let i = this.idx + d;
@@ -422,7 +422,7 @@
     },
     close() {
       clearInterval(this.timer);
-      if (global.speechSynthesis) speechSynthesis.cancel();
+      this.api.Fx.stopVoice();
       this.api.Fx.mediaMode(false);
       try { if (this.lock) this.lock.release(); } catch (e) { /* ignore */ }
       this.lock = null;

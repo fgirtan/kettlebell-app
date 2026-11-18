@@ -18,7 +18,7 @@
   // ---------- Storage ----------
   const KEY = 'kettlebell.v1';
   const DEFAULTS = {
-    settings: { minutes: 30, level: 1, focus: 'full', sound: true, voice: true, vibrate: true, theme: 'auto', voiceName: '', voiceRate: 1, voiceVol: 1, prepCue: 'ticks', silentMode: true },
+    settings: { minutes: 30, level: 1, focus: 'full', sound: true, voice: true, vibrate: true, theme: 'auto', voiceName: '', voiceRate: 1, voiceVol: 1, prepCue: 'ticks', silentMode: true, voiceEngine: 'clips' },
     plan: null,
     history: [],
   };
@@ -341,7 +341,9 @@
       <div class="card"><p class="label">Sound &amp; feedback</p>
         ${sw('voice', 'Voice coach', 'Announces the next exercise, which side starts, “switch hands” and rests')}
         <div id="voiceBox" ${S.voice ? '' : 'hidden'}>
-          <div class="set-row"><div>Voice</div><select id="voiceSel" class="select"></select></div>
+          <div class="set-row"><div><div>Voice</div><div class="small muted">Recorded works with the phone on silent</div></div>
+            <div class="seg mini" id="vEngine" style="min-width:190px">${[['clips', 'Recorded'], ['device', 'Phone voice']].map(([v, l]) => `<button data-v="${v}" class="${S.voiceEngine === v ? 'on' : ''}">${l}</button>`).join('')}</div></div>
+          <div class="set-row" id="voiceSelRow" ${S.voiceEngine === 'device' ? '' : 'hidden'}><div>Phone voice</div><select id="voiceSel" class="select"></select></div>
           <div class="set-row"><div>Speed</div><div class="seg mini" id="vRate" style="min-width:180px">${[[0.9, 'Calm'], [1, 'Normal'], [1.15, 'Fast']].map(([v, l]) => `<button data-v="${v}" class="${S.voiceRate == v ? 'on' : ''}">${l}</button>`).join('')}</div></div>
           <div class="set-row"><div>Volume</div><input type="range" id="vVol" min="0.3" max="1" step="0.1" value="${S.voiceVol}" style="max-width:160px"></div>
           <button class="btn ghost block" id="testVoice" style="margin-top:10px">Test voice</button>
@@ -378,10 +380,15 @@
       const sel = $('#voiceSel'); if (!sel) return;
       const cur = (Fx.currentVoice() || {}).name;
       sel.innerHTML = vs.length ? vs.map((v) => `<option value="${v.name}" ${v.name === cur ? 'selected' : ''}>${v.name.replace(/\(.*\)/, '').trim()} · ${v.lang}</option>`).join('') : '<option>Default voice</option>';
-      $('#voiceNote').textContent = vs.length ? '' : 'No English voice found on this device – it will use the default voice. You can add one in your phone settings (Accessibility → Spoken content / Text-to-speech).';
+      $('#voiceNote').textContent = S.voiceEngine === 'clips' ? 'Recorded voice: plays like music, so you hear it even on silent – just keep the media volume up.'
+        : vs.length ? 'The phone voice is muted when an iPhone is on silent.' : 'No English voice found on this device – it will use the default voice.';
     };
     fillVoices();
     if (window.speechSynthesis) speechSynthesis.addEventListener('voiceschanged', fillVoices);
+    $$('#vEngine button').forEach((b) => (b.onclick = () => {
+      S.voiceEngine = b.dataset.v; save(); $$('#vEngine button').forEach((x) => x.classList.toggle('on', x === b));
+      $('#voiceSelRow').hidden = S.voiceEngine !== 'device'; fillVoices(); Fx.unlock(); Fx.say('Next up: goblet squat.');
+    }));
     $('#voiceSel').onchange = (e) => { S.voiceName = e.target.value; Fx.voiceObj = null; save(); Fx.unlock(); Fx.say('Next up: goblet squat.'); };
     $$('#vRate button').forEach((b) => (b.onclick = () => { S.voiceRate = +b.dataset.v; save(); $$('#vRate button').forEach((x) => x.classList.toggle('on', x === b)); Fx.unlock(); Fx.say('Switch hands. Go!'); }));
     $('#vVol').onchange = (e) => { S.voiceVol = +e.target.value; save(); Fx.unlock(); Fx.say('Rest. Next up: push-up.'); };
@@ -410,6 +417,13 @@
         if (!this.ctx) this.ctx = new (window.AudioContext || window.webkitAudioContext)();
         if (this.ctx.state === 'suspended') this.ctx.resume();
       } catch (e) { /* no audio */ }
+      // iOS lets a media element play later only if it was started once from a tap
+      if (S.voiceEngine === 'clips' && !this._voiceUnlocked) {
+        const a = this.ensureVoiceEl();
+        try { a.src = this.silentUrl(); const pr = a.play(); if (pr && pr.then) pr.then(() => { if (!this.clipTok) a.pause(); }).catch(() => {}); } catch (e) { /* ignore */ }
+        this._voiceUnlocked = true;
+        this.prefetchClips();
+      }
       // iOS only allows speech after a real utterance started from a tap
       if (window.speechSynthesis && !this._primed) {
         try { const u = new SpeechSynthesisUtterance(' '); u.volume = 0; speechSynthesis.speak(u); this._primed = true; } catch (e) { /* ignore */ }
@@ -444,6 +458,46 @@
         } else if (this.silentEl) this.silentEl.pause();
       } catch (e) { /* ignore */ }
     },
+    // ---- Recorded voice clips (play as media, so they work on silent) ----
+    voiceEl: null, clipCache: new Map(), clipTok: 0,
+    clipSet: new Set(self.VOICE_CLIPS || []),
+    norm(s) { return s.toLowerCase().replace(/&/g, 'and').replace(/[^a-z0-9]+/g, ''); },
+    clipKeys(text) {
+      const keys = text.split(/[.,:!?]+/).map((x) => x.trim()).filter(Boolean).map((x) => this.norm(x)).filter(Boolean);
+      return keys.length && keys.every((k) => this.clipSet.has(k)) ? keys : null;
+    },
+    clip(k) {
+      if (!this.clipCache.has(k)) this.clipCache.set(k, fetch(`audio/${k}.mp3`).then((r) => { if (!r.ok) throw new Error(k); return r.arrayBuffer(); }));
+      return this.clipCache.get(k);
+    },
+    ensureVoiceEl() {
+      if (this.voiceEl) return this.voiceEl;
+      const a = document.createElement('audio');
+      a.setAttribute('playsinline', ''); a.preload = 'auto';
+      a.addEventListener('ended', () => { if (this.silentEl && S.silentMode && !document.getElementById('player').hidden) this.silentEl.play().catch(() => {}); });
+      this.voiceEl = a;
+      return a;
+    },
+    async playClips(keys) {
+      const tok = ++this.clipTok;
+      try {
+        const bufs = await Promise.all(keys.map((k) => this.clip(k)));
+        if (tok !== this.clipTok) return; // a newer announcement replaced this one
+        const a = this.ensureVoiceEl();
+        if (this._clipUrl) URL.revokeObjectURL(this._clipUrl);
+        this._clipUrl = URL.createObjectURL(new Blob(bufs, { type: 'audio/mpeg' }));
+        a.src = this._clipUrl;
+        a.playbackRate = S.voiceRate || 1; a.preservesPitch = true; a.webkitPreservesPitch = true;
+        a.volume = S.voiceVol || 1;
+        await a.play();
+      } catch (e) { /* missing clip or blocked playback */ }
+    },
+    stopVoice() {
+      this.clipTok++;
+      if (this.voiceEl) try { this.voiceEl.pause(); } catch (e) { /* ignore */ }
+      if (window.speechSynthesis) try { speechSynthesis.cancel(); } catch (e) { /* ignore */ }
+    },
+    prefetchClips() { if (!this._prefetched) { this._prefetched = true; [...this.clipSet].forEach((k) => this.clip(k).catch(() => {})); } },
     // Subtle get-ready cues
     tick() { this.beep(1400, 0.025, 0.05); },
     countdown(n) {
@@ -476,7 +530,13 @@
       return vs.find((v) => v.localService) || vs[0] || null;
     },
     say(text, force) {
-      if ((!S.voice && !force) || !window.speechSynthesis) return;
+      if (!S.voice && !force) return;
+      if (S.voiceEngine !== 'device') {
+        const keys = this.clipKeys(text);
+        if (keys) { if (window.speechSynthesis) speechSynthesis.cancel(); this.playClips(keys); return; }
+        if (window.console) console.warn('no recorded clip for:', text);
+      }
+      if (!window.speechSynthesis) return;
       try {
         const u = new SpeechSynthesisUtterance(text);
         const v = this.currentVoice();
@@ -500,7 +560,7 @@
   const Player = {
     start(plan) {
       Fx.unlock();
-      if (window.speechSynthesis) speechSynthesis.cancel();
+      Fx.stopVoice();
       this.plan = plan;
       this.iv = Generator.buildIntervals(plan);
       this.total = this.iv.reduce((s, x) => s + x.dur, 0);
@@ -695,7 +755,7 @@
       clearInterval(this.timer);
       Fx.mediaMode(false);
       if (this.svg) Figure.stop(this.svg);
-      if (window.speechSynthesis) speechSynthesis.cancel();
+      Fx.stopVoice();
       try { if (this.lock) this.lock.release(); } catch (e) { /* ignore */ }
       this.lock = null;
       this.el.hidden = true; this.el.innerHTML = '';

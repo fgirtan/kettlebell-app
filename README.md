@@ -43,6 +43,19 @@ A separate **Boxing** tab:
 - **Ring cues:** bell at the start and end of each round, a 10-second clapper, optional short freestyle bursts and tips ("hands up", "chin down").
 - **History:** sessions are saved to History.
 
+## Voice
+
+The coach uses **recorded voice clips** (`audio/*.mp3`, generated with the open-source Piper TTS, "Lessac" voice). They play like music, so you hear them **even when an iPhone is on silent**. Settings → Voice → *Phone voice* switches to the phone's built-in speech instead; that one is muted on silent.
+
+To regenerate the clips after adding exercises or phrases:
+
+```bash
+node dev/phrases.js > phrases.json
+python dev/make_voice.py en-us-lessac-medium.onnx phrases.json audio
+```
+
+Then rebuild `js/voice-index.js` (the list of clip keys) and bump `VERSION` in `sw.js`.
+
 ## Hosting
 
 The app is a static site: plain HTML, CSS and JS, with no build step.
