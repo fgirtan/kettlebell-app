@@ -130,13 +130,32 @@ input[type=range] { width: 100%; accent-color: var(--accent); }
 .sticky-start .btn { box-shadow: 0 8px 24px rgba(0,0,0,.35); }
 
 /* ---------- Figure ---------- */
+:root { --skin: #f2c39d; --shirt: #5aa9ff; --pants: #d5dbe5; --shoe: #ffffff; --hair: #3a2a20; --eye: #1b1b1b; --shadow: rgba(255,255,255,.07); }
+@media (prefers-color-scheme: light) { :root:not([data-theme="dark"]) { --shirt: #2f7de1; --pants: #3d4a5c; --shoe: #1f2937; --shadow: rgba(0,0,0,.08); } }
+:root[data-theme="light"] { --shirt: #2f7de1; --pants: #3d4a5c; --shoe: #1f2937; --shadow: rgba(0,0,0,.08); }
 .fig { display: block; width: 100%; height: 100%; }
 .fg-ground { stroke: var(--line); stroke-width: 2.5; stroke-linecap: round; }
-.fg-near polyline, .fg-near-arm { stroke: var(--fig); stroke-width: 7; stroke-linecap: round; stroke-linejoin: round; }
-.fg-far polyline { stroke: var(--fig-far); stroke-width: 7; stroke-linecap: round; stroke-linejoin: round; }
-.fg-head { fill: var(--fig); }
+.fg-shadow { fill: var(--shadow); }
+.fig line { stroke-linecap: round; }
+.fg-skin { stroke: var(--skin); } .fg-skin-fill { fill: var(--skin); }
+.fg-shirt { stroke: var(--shirt); } .fg-pants { stroke: var(--pants); } .fg-pants-fill { fill: var(--pants); } .fg-shoe { stroke: var(--shoe); }
+.fg-hair { fill: var(--hair); } .fg-eye { fill: var(--eye); }
+.fg-torso { stroke-width: 17; } .fg-th { stroke-width: 12.5; } .fg-sh { stroke-width: 9.5; } .fg-ft { stroke-width: 6.5; }
+.fg-ua { stroke-width: 8.5; } .fg-fa { stroke-width: 7; } .fg-neck { stroke-width: 6; }
+.fg-far { opacity: .55; }
 .fg-kb circle { fill: var(--kb); }
 .fg-kb path { stroke: var(--kb); stroke-width: 3.5; stroke-linecap: round; }
+
+/* Real-person photos: start and end position cross-fading */
+.ph { position: relative; width: 100%; height: 100%; border-radius: 14px; overflow: hidden; background: #000; }
+.ph img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
+.ph img.b { animation: phswap 3s ease-in-out infinite; }
+.ph.paused img.b { animation-play-state: paused; }
+@keyframes phswap { 0%, 38% { opacity: 0; } 50%, 88% { opacity: 1; } 100% { opacity: 0; } }
+.thumb .ph { border-radius: 10px; } .thumb .ph img { object-fit: cover; }
+.ph-tag { position: absolute; right: 8px; bottom: 8px; font-size: 10px; color: #fff; background: rgba(0,0,0,.45); padding: 2px 6px; border-radius: 6px; }
+.p-stage .ph { max-height: 100%; aspect-ratio: 4 / 3; height: auto; }
+.sheet .stage.photo { aspect-ratio: 4 / 3; }
 
 /* ---------- Library ---------- */
 .search { width: 100%; padding: 13px 14px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); color: var(--text); font: inherit; margin-bottom: 10px; }

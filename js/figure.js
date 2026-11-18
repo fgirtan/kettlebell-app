@@ -102,60 +102,77 @@
     return e;
   }
 
+  // A clothed, solid-bodied figure: skin, shirt, pants, shoes, a face that shows where the person looks.
+  // Far-side limbs are drawn first and slightly faded so depth is obvious.
   function build(svg) {
     svg.setAttribute('viewBox', '0 0 200 200');
     svg.innerHTML = '';
+    el('ellipse', { cx: 100, cy: G + 3, rx: 70, ry: 4, class: 'fg-shadow' }, svg);
     el('line', { x1: 8, y1: G + 3, x2: 192, y2: G + 3, class: 'fg-ground' }, svg);
     const far = el('g', { class: 'fg-far' }, svg);
-    const near = el('g', { class: 'fg-near' }, svg);
-    const mk = (g) => el('polyline', { fill: 'none' }, g);
-    const parts = {
-      farLeg: mk(far), farArmBehind: null,
-      body: mk(near), nearLeg: mk(near),
-    };
-    parts.farArm = mk(far);
-    parts.head = el('circle', { r: L.head, class: 'fg-head' }, near);
+    const seg = (g, cls) => el('line', { class: cls }, g);
+    const parts = {};
+    parts.farUA = seg(far, 'fg-shirt fg-ua'); parts.farFA = seg(far, 'fg-skin fg-fa'); parts.farHand = el('circle', { r: 3.6, class: 'fg-skin-fill' }, far);
+    parts.farTh = seg(far, 'fg-pants fg-th'); parts.farSh = seg(far, 'fg-pants fg-sh'); parts.farFoot = seg(far, 'fg-shoe fg-ft');
+    const body = el('g', { class: 'fg-body' }, svg);
+    parts.torso = seg(body, 'fg-shirt fg-torso');
+    parts.pelvis = el('circle', { r: 7.5, class: 'fg-pants-fill' }, body);
+    parts.nearTh = seg(body, 'fg-pants fg-th'); parts.nearSh = seg(body, 'fg-pants fg-sh'); parts.nearFoot = seg(body, 'fg-shoe fg-ft');
+    parts.neck = seg(body, 'fg-skin fg-neck');
+    parts.hair = el('circle', { r: L.head + 0.6, class: 'fg-hair' }, body);
+    parts.face = el('circle', { r: L.head - 0.6, class: 'fg-skin-fill' }, body);
+    parts.eye = el('circle', { r: 1.3, class: 'fg-eye' }, body);
     parts.kbG = el('g', { class: 'fg-kb' }, svg);
     parts.kbBody = el('circle', { r: 8 }, parts.kbG);
     parts.kbHandle = el('path', { fill: 'none' }, parts.kbG);
-    parts.nearArm = mk(svg); parts.nearArm.setAttribute('class', 'fg-near-arm');
+    const nearArm = el('g', { class: 'fg-near-arm' }, svg);
+    parts.nearUA = seg(nearArm, 'fg-shirt fg-ua'); parts.nearFA = seg(nearArm, 'fg-skin fg-fa'); parts.nearHand = el('circle', { r: 3.8, class: 'fg-skin-fill' }, nearArm);
     return parts;
   }
 
-  const pts = (...a) => a.map((q) => q[0].toFixed(1) + ',' + q[1].toFixed(1)).join(' ');
+  const f1 = (v) => v.toFixed(1);
+  const line = (l, a, b) => { l.setAttribute('x1', f1(a[0])); l.setAttribute('y1', f1(a[1])); l.setAttribute('x2', f1(b[0])); l.setAttribute('y2', f1(b[1])); };
+  const dot = (c, a) => { c.setAttribute('cx', f1(a[0])); c.setAttribute('cy', f1(a[1])); };
 
   function draw(parts, p) {
     const j = solve(p);
-    parts.farLeg.setAttribute('points', pts(j.hip, j.k2, j.an2, j.t2));
-    parts.farArm.setAttribute('points', pts(j.sh, j.e2, j.h2));
-    parts.nearLeg.setAttribute('points', pts(j.hip, j.k1, j.an1, j.t1));
-    parts.body.setAttribute('points', pts(j.hip, j.sh));
-    parts.nearArm.setAttribute('points', pts(j.sh, j.e1, j.h1));
-    parts.head.setAttribute('cx', j.head[0].toFixed(1));
-    parts.head.setAttribute('cy', j.head[1].toFixed(1));
+    line(parts.farUA, j.sh, j.e2); line(parts.farFA, j.e2, j.h2); dot(parts.farHand, j.h2);
+    line(parts.farTh, j.hip, j.k2); line(parts.farSh, j.k2, j.an2); line(parts.farFoot, j.an2, j.t2);
+    // torso from just above the hip to just below the shoulder so the joints look rounded
+    line(parts.torso, j.hip, j.sh); dot(parts.pelvis, j.hip);
+    line(parts.nearTh, j.hip, j.k1); line(parts.nearSh, j.k1, j.an1); line(parts.nearFoot, j.an1, j.t1);
+    const ha = (p.a + (p.hd || 0)) * Math.PI / 180;
+    const up = [Math.sin(ha), -Math.cos(ha)], fwd = [Math.cos(ha), Math.sin(ha)];
+    const neckTop = [j.sh[0] + up[0] * (L.neck + 1), j.sh[1] + up[1] * (L.neck + 1)];
+    line(parts.neck, j.sh, neckTop);
+    dot(parts.hair, [j.head[0] - fwd[0] * 1.2, j.head[1] - fwd[1] * 1.2]);
+    dot(parts.face, [j.head[0] + fwd[0] * 1.1, j.head[1] + fwd[1] * 1.1]);
+    dot(parts.eye, [j.head[0] + fwd[0] * 4.6 + up[0] * 1.2, j.head[1] + fwd[1] * 4.6 + up[1] * 1.2]);
+    line(parts.nearUA, j.sh, j.e1); line(parts.nearFA, j.e1, j.h1); dot(parts.nearHand, j.h1);
     if (p.kb) {
       let h = p.kb === 'far' ? j.h2 : p.kb === 'both' ? [(j.h1[0] + j.h2[0]) / 2, (j.h1[1] + j.h2[1]) / 2] : j.h1;
       let c;
       if (p.km === 'float') {
         const e = p.kb === 'far' ? j.e2 : j.e1;
         const dx = h[0] - e[0], dy = h[1] - e[1], d = Math.hypot(dx, dy) || 1;
-        c = [h[0] + (dx / d) * 9, h[1] + (dy / d) * 9];
+        c = [h[0] + (dx / d) * 10, h[1] + (dy / d) * 10];
       } else {
         const o = KB_OFF[p.km || 'hang'];
         c = [h[0] + o[0], h[1] + o[1]];
       }
       parts.kbG.style.display = '';
-      parts.kbBody.setAttribute('cx', c[0].toFixed(1));
-      parts.kbBody.setAttribute('cy', c[1].toFixed(1));
+      parts.kbBody.setAttribute('cx', f1(c[0]));
+      parts.kbBody.setAttribute('cy', f1(c[1]));
       const ang = Math.atan2(h[1] - c[1], h[0] - c[0]);
       const ux = Math.cos(ang), uy = Math.sin(ang), px = -uy, py = ux;
       const b1 = [c[0] + ux * 5 + px * 5, c[1] + uy * 5 + py * 5];
       const b2 = [c[0] + ux * 5 - px * 5, c[1] + uy * 5 - py * 5];
       const top = [c[0] + ux * 15, c[1] + uy * 15];
-      parts.kbHandle.setAttribute('d', `M${b1[0].toFixed(1)},${b1[1].toFixed(1)} Q${(top[0] + px * 7).toFixed(1)},${(top[1] + py * 7).toFixed(1)} ${top[0].toFixed(1)},${top[1].toFixed(1)} Q${(top[0] - px * 7).toFixed(1)},${(top[1] - py * 7).toFixed(1)} ${b2[0].toFixed(1)},${b2[1].toFixed(1)}`);
+      parts.kbHandle.setAttribute('d', `M${f1(b1[0])},${f1(b1[1])} Q${f1(top[0] + px * 7)},${f1(top[1] + py * 7)} ${f1(top[0])},${f1(top[1])} Q${f1(top[0] - px * 7)},${f1(top[1] - py * 7)} ${f1(b2[0])},${f1(b2[1])}`);
     } else {
       parts.kbG.style.display = 'none';
     }
+    return j;
   }
 
   // ---------- Animation runtime ----------
@@ -217,7 +234,14 @@
     const parts = build(svg);
     const fr = frames(key);
     const i = idx === undefined ? (global.ANIM_PEAK && global.ANIM_PEAK[key] !== undefined ? global.ANIM_PEAK[key] : Math.min(1, fr.length - 1)) : idx;
-    draw(parts, fr[Math.min(i, fr.length - 1)].p);
+    const j = draw(parts, fr[Math.min(i, fr.length - 1)].p);
+    // zoom static thumbnails onto the figure
+    const ptsAll = Object.values(j);
+    let x0 = Math.min(...ptsAll.map((q) => q[0])) - 14, x1 = Math.max(...ptsAll.map((q) => q[0])) + 14;
+    let y0 = Math.min(...ptsAll.map((q) => q[1])) - 16; const y1 = G + 6;
+    const size = Math.max(x1 - x0, y1 - y0, 90);
+    const cx = (x0 + x1) / 2;
+    svg.setAttribute('viewBox', `${(cx - size / 2).toFixed(1)} ${(y1 - size).toFixed(1)} ${size.toFixed(1)} ${size.toFixed(1)}`);
   }
 
   function setPaused(svg, paused) {

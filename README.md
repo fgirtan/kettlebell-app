@@ -52,6 +52,12 @@ A separate **Recovery** tab for quiet, equipment-free sessions (fine for an apar
 - **Calm voice:** "Next…", "Begin", "Switch sides", a "Breathe slowly" reminder halfway through long holds, and soft chimes instead of loud beeps.
 - **History:** sessions are saved to History; moves from your last session are less likely to come up again.
 
+## Exercise visuals
+
+- **Real photos:** 41 exercises show photos of a real person in the start and end position, cross-fading. They come from [free-exercise-db](https://github.com/yuhonas/free-exercise-db), which is public domain (Unlicense), and are stored in `photos/`, mapped in `js/photos.js`. Only entries that clearly match the movement and equipment were used.
+- **Animated figure:** every other exercise uses an animated figure with skin, shirt, pants, shoes and a face showing which way the person looks; far-side limbs are faded.
+- **Switching:** Settings → Exercise visuals, or the toggle on each exercise page, switches between photos and the animation.
+
 ## Voice
 
 The coach uses **recorded voice clips** generated with the open-source **Kokoro** TTS: a male voice ("Michael", `audio/m/`, default) and a female voice ("Heart", `audio/f/`). They play like music, so you hear them **even when an iPhone is on silent**. Settings → Voice lets you pick *Female*, *Male* or *Phone*; the phone voice uses the built-in speech, which is muted on silent.

@@ -18,7 +18,7 @@
   // ---------- Storage ----------
   const KEY = 'kettlebell.v1';
   const DEFAULTS = {
-    settings: { minutes: 30, level: 1, focus: 'full', sound: true, voice: true, vibrate: true, theme: 'auto', voiceName: '', voiceRate: 1, voiceVol: 1, prepCue: 'ticks', silentMode: true, voiceEngine: 'clips', clipVoice: 'm' },
+    settings: { minutes: 30, level: 1, focus: 'full', sound: true, voice: true, vibrate: true, theme: 'auto', voiceName: '', voiceRate: 1, voiceVol: 1, prepCue: 'ticks', silentMode: true, voiceEngine: 'clips', clipVoice: 'm', visual: 'photo' },
     plan: null,
     history: [],
   };
@@ -48,6 +48,15 @@
   const fmtMin = (sec) => `${Math.round(sec / 60)} min`;
   const fmtSec = (s) => (s >= 60 ? (s % 60 ? `${Math.floor(s / 60)}m ${s % 60}s` : `${s / 60} min`) : `${s}s`);
   function svgFig() { const s = document.createElementNS(NS, 'svg'); s.setAttribute('class', 'fig'); return s; }
+  // Real-person photo (start/end position cross-fading) when available, otherwise the animated figure
+  const photoKey = (id) => (S.visual !== 'figure' && self.PHOTOS ? self.PHOTOS[id] : null);
+  function photoEl(key, still) {
+    const d = document.createElement('div');
+    d.className = 'ph';
+    d.innerHTML = still ? `<img src="photos/${key}_1.jpg" alt="" loading="lazy">`
+      : `<img class="a" src="photos/${key}_0.jpg" alt=""><img class="b" src="photos/${key}_1.jpg" alt="">`;
+    return d;
+  }
   function toast(msg) { const t = $('#toast'); t.textContent = msg; t.hidden = false; clearTimeout(toast._t); toast._t = setTimeout(() => (t.hidden = true), 2200); }
   const regionTag = (e) => `<span class="tag ${e.region}">${{ lower: 'Lower', upper: 'Upper', core: 'Core', total: 'Total' }[e.region]}</span>`;
   const sideNote = (e) => (e.uni ? ' · each side' : e.alt ? ' · alternating' : '');
@@ -200,7 +209,9 @@
     d.className = 'ex-item';
     d.innerHTML = `${idx !== undefined ? `<div class="num">${idx}</div>` : ''}<div class="thumb"></div>
       <div class="info"><div class="name">${e.name}</div><div class="meta">${regionTag(e)}${e.muscles.slice(0, 3).join(', ')}${sideNote(e)}</div></div>`;
-    const svg = svgFig(); d.querySelector('.thumb').appendChild(svg); Figure.still(svg, e.anim);
+    const pk = photoKey(id);
+    if (pk) d.querySelector('.thumb').appendChild(photoEl(pk, true));
+    else { const svg = svgFig(); d.querySelector('.thumb').appendChild(svg); Figure.still(svg, e.anim); }
     d.querySelector('.info').onclick = () => openSheet(id);
     d.querySelector('.thumb').onclick = () => openSheet(id);
     if (opts && opts.onSwap) {
@@ -264,6 +275,7 @@
       <div class="grab"></div>
       <div class="row" style="justify-content:flex-end"><button class="icon-btn" id="shClose" aria-label="Close">${ICON.close}</button></div>
       <div class="stage"></div>
+      ${self.PHOTOS && self.PHOTOS[id] ? `<div class="seg mini" id="visSeg" style="max-width:260px;margin:0 auto 10px">${[['photo', 'Real photos'], ['figure', 'Animation']].map(([v, l]) => `<button data-v="${v}" class="${(S.visual === 'figure' ? 'figure' : 'photo') === v ? 'on' : ''}">${l}</button>`).join('')}</div>` : ''}
       <h2>${e.name}</h2>
       <p style="margin:10px 0 4px">${regionTag(e)}<span class="tag">${CAT_LABEL[e.cat]}</span><span class="tag">${LEVEL_LABEL[e.level]}</span>${e.uni ? '<span class="tag">each side</span>' : ''}${e.alt ? '<span class="tag">alternating</span>' : ''}${e.floor ? '<span class="tag">on the floor</span>' : ''}${e.bw ? '<span class="tag">bodyweight</span>' : ''}</p>
       <p class="small muted" style="margin:6px 0 0">Muscles: ${e.muscles.join(', ')}</p>
@@ -271,7 +283,18 @@
       <ol>${e.cues.map((c) => `<li>${c}</li>`).join('')}</ol>
       ${e.avoid ? `<div class="avoid"><b>Avoid:</b> ${e.avoid}</div>` : ''}
     </div>`;
-    const svg = svgFig(); sh.querySelector('.stage').appendChild(svg); Figure.animate(svg, e.anim);
+    const svg = svgFig();
+    const showVis = (mode) => {
+      const stage = sh.querySelector('.stage'); stage.innerHTML = ''; Figure.stop(svg);
+      const pk = mode === 'photo' && self.PHOTOS ? self.PHOTOS[id] : null;
+      stage.classList.toggle('photo', !!pk);
+      if (pk) { stage.appendChild(photoEl(pk)); const t = document.createElement('span'); t.className = 'ph-tag'; t.textContent = 'start ⇄ end position'; stage.querySelector('.ph').appendChild(t); }
+      else { stage.appendChild(svg); Figure.animate(svg, e.anim); }
+    };
+    showVis(S.visual === 'figure' ? 'figure' : 'photo');
+    $$('#visSeg button', sh).forEach((b) => (b.onclick = () => {
+      S.visual = b.dataset.v; save(); $$('#visSeg button', sh).forEach((x) => x.classList.toggle('on', x === b)); showVis(S.visual);
+    }));
     sh.hidden = false;
     const close = () => { Figure.stop(svg); sh.hidden = true; sh.innerHTML = ''; };
     $('#shClose').onclick = close;
@@ -364,6 +387,10 @@
         ${sw('vibrate', 'Vibration', 'On phones that support it')}
         ${sw('silentMode', 'Play when phone is on silent', 'Voice and sounds work even with the silent switch on. On iPhone this may pause music playing in another app.')}
       </div>
+      <div class="card"><p class="label">Exercise visuals</p>
+        <div class="seg" id="visual">${[['photo', 'Real photos'], ['figure', 'Animation']].map(([k, l]) => `<button data-v="${k}" class="${(S.visual === 'figure' ? 'figure' : 'photo') === k ? 'on' : ''}">${l}</button>`).join('')}</div>
+        <p class="small muted" style="margin:10px 2px 0">Real photos (start ⇄ end position) are shown for ${Object.keys(self.PHOTOS || {}).length} exercises; the others use the animated figure. Photos: free-exercise-db, public domain.</p>
+      </div>
       <div class="card"><p class="label">Timing</p>
         <p class="small muted" style="margin:0">Work, rest, get-ready time, warm-up and cool-down are set on the Workout tab, under <b>Timing</b>.</p>
       </div>
@@ -414,6 +441,7 @@
       setTimeout(() => { Fx.switchCue(); Fx.say('Switch hands.'); }, 8200);
       setTimeout(() => { if ($('#player').hidden) Fx.mediaMode(false); }, 11000);
     };
+    $$('#visual button').forEach((b) => (b.onclick = () => { S.visual = b.dataset.v; save(); $$('#visual button').forEach((x) => x.classList.toggle('on', x === b)); }));
     $$('#theme button').forEach((b) => (b.onclick = () => { S.theme = b.dataset.t; save(); applyTheme(); $$('#theme button').forEach((x) => x.classList.toggle('on', x === b)); }));
     $('#clearHist').onclick = () => { if (confirm('Delete your entire workout history?')) { store.history = []; save(); toast('History cleared'); } };
   }
@@ -595,6 +623,9 @@
           <button id="pNext" aria-label="Skip"><span class="ic">${ICON.next}</span><small>Skip</small></button>
         </div>`;
       this.svg = svgFig(); $('.p-stage', this.el).appendChild(this.svg);
+      this.ph = document.createElement('div'); this.ph.className = 'ph'; this.ph.hidden = true;
+      this.ph.innerHTML = '<img class="a" alt=""><img class="b" alt="">';
+      $('.p-stage', this.el).appendChild(this.ph);
       $('#pClose').onclick = () => this.exit();
       $('#pPlay').onclick = () => this.toggle();
       $('#pNext').onclick = () => this.jump(1);
@@ -669,8 +700,17 @@
       this.cueIdx = 0;
       const nx = x.next ? EX[x.next] : null;
       $('.p-next', this.el).textContent = !isRest && nx ? 'Up next: ' + nx.name : '';
-      if (!this.svg._fig || this.svg._fig.key !== e.anim) Figure.animate(this.svg, e.anim, { speed: isRest ? 0.8 : 1 });
-      Figure.setPaused(this.svg, !this.running);
+      const pk = photoKey(e.id);
+      if (pk) {
+        Figure.stop(this.svg); this.svg.style.display = 'none'; this.ph.hidden = false;
+        const [a, b] = this.ph.querySelectorAll('img');
+        if (a.dataset.k !== pk) { a.src = `photos/${pk}_0.jpg`; b.src = `photos/${pk}_1.jpg`; a.dataset.k = pk; }
+        this.ph.classList.toggle('paused', !this.running);
+      } else {
+        this.ph.hidden = true; this.svg.style.display = '';
+        if (!this.svg._fig || this.svg._fig.key !== e.anim) Figure.animate(this.svg, e.anim, { speed: isRest ? 0.8 : 1 });
+        Figure.setPaused(this.svg, !this.running);
+      }
       this.renderSkips();
       this.renderTime();
 
@@ -756,6 +796,7 @@
       $('#pPlay .ic').innerHTML = this.running ? ICON.pause : ICON.play;
       $('#pPlay').setAttribute('aria-label', this.running ? 'Pause' : 'Resume');
       Figure.setPaused(this.svg, !this.running);
+      if (this.ph) this.ph.classList.toggle('paused', !this.running);
       if (this.running) { Fx.unlock(); this.wake(); } else Fx.say('Paused');
     },
     jump(d) {
