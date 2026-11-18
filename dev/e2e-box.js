@@ -1,0 +1,16 @@
+const { chromium, devices } = require('playwright');
+(async()=>{const S=process.argv[2];const b=await chromium.launch();const c=await b.newContext({...devices['iPhone 13'], colorScheme:'dark'});
+const p=await c.newPage();const errs=[];p.on('pageerror',e=>errs.push(e.message));p.on('console',m=>{if(m.type()==='error')errs.push(m.text())});
+p.on('dialog',d=>d.accept());
+await p.goto('http://localhost:8765/');await p.waitForTimeout(400);
+await p.tap('[data-tab=boxing]');await p.waitForTimeout(300);
+await p.screenshot({path:S+'/e-setup.png',fullPage:true});
+await p.tap('[data-bstep=prep][data-d="-5"]');await p.tap('[data-bstep=prep][data-d="-5"]');
+await p.tap('#bStart');await p.waitForTimeout(4500);
+await p.screenshot({path:S+'/e-player.png'});
+const txt=await p.textContent('#bxCombo');
+await p.tap('#bNext');await p.waitForTimeout(500);
+const ph=await p.textContent('.p-phase');
+await p.tap('#bClose');await p.waitForTimeout(300);
+await p.tap('[data-tab=history]');await p.waitForTimeout(300);
+console.log('combo:',txt,'| after skip:',ph,'| errors:',errs.join('\n')||'none');await b.close();})();

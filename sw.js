@@ -1,8 +1,8 @@
 // Offline-first service worker. Bump VERSION when files change.
-const VERSION = 'kb-v5';
+const VERSION = 'kb-v6';
 const ASSETS = [
   './', 'index.html', 'manifest.webmanifest', 'css/styles.css',
-  'js/figure.js', 'js/anims.js', 'js/exercises.js', 'js/generator.js', 'js/app.js',
+  'js/figure.js', 'js/anims.js', 'js/exercises.js', 'js/generator.js', 'js/boxing.js', 'js/app.js',
   'icons/icon.svg', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/maskable-512.png', 'icons/apple-touch-icon.png',
 ];
 self.addEventListener('install', (e) => {

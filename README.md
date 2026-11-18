@@ -29,6 +29,20 @@ A Progressive Web App for kettlebell training. Install it on your phone's home s
 - **Swap any exercise** for another one from the same category; the order is recalculated.
 - **History** with total workouts, total minutes and your day streak, stored on the device.
 
+## Shadowboxing module
+
+A separate **Boxing** tab:
+
+- **Format:** rounds (number of rounds, round length, rest) or one continuous session (1–90 min), plus a get-ready countdown.
+- **Spoken combos in English:** e.g. *"short left, long right"*, *"long right, uppercut left"*, *"duck left, hook left"*, *"double short left, long right body"*. Wording can be **Short / long** or **Jab / cross**, for orthodox or southpaw.
+- **Level:** sets combo length (1–3, 2–4 or 3–6 moves), how often defense and power shots appear, and the pace. The pace can also be set by hand.
+- **Natural combos:**
+  - Hands mostly alternate; repeated punches become "double…".
+  - A duck to one side is followed by a counter from that side; step back or pivot ends a combo.
+  - Classic combinations are mixed in.
+- **Ring cues:** bell at the start and end of each round, a 10-second clapper, optional short freestyle bursts and tips ("hands up", "chin down").
+- **History:** sessions are saved to History.
+
 ## Hosting
 
 The app is a static site: plain HTML, CSS and JS, with no build step.

@@ -54,14 +54,14 @@
   // ---------- Tabs ----------
   let tab = 'home';
   $$('.tabs button').forEach((b) => b.addEventListener('click', () => { tab = b.dataset.tab; render(); window.scrollTo(0, 0); }));
-  const TITLES = { home: 'Workout', library: 'Exercises', history: 'History', settings: 'Settings' };
+  const TITLES = { home: 'Kettlebell', boxing: 'Shadowboxing', library: 'Exercises', history: 'History', settings: 'Settings' };
 
   function render() {
     $$('.tabs button').forEach((b) => b.classList.toggle('active', b.dataset.tab === tab));
     $('#title').textContent = TITLES[tab];
     const v = $('#view');
     v.innerHTML = '';
-    ({ home: renderHome, library: renderLibrary, history: renderHistory, settings: renderSettings })[tab](v);
+    ({ home: renderHome, boxing: (el) => Boxing.render(el, api()), library: renderLibrary, history: renderHistory, settings: renderSettings })[tab](v);
   }
 
   // ---------- Home / generator ----------
@@ -319,8 +319,15 @@
     h.slice().reverse().forEach((x) => {
       const dt = new Date(x.date);
       const c = document.createElement('div'); c.className = 'card hist-item';
+      if (x.type === 'boxing') {
+        c.innerHTML = `<div class="date"><b>${dt.getDate()}</b><span>${MONTHS[dt.getMonth()]}</span></div>
+          <div style="flex:1;min-width:0"><div style="font-weight:700">🥊 Shadowboxing · ${fmtMin(x.sec)}</div>
+          <div class="small muted">${x.mode === 'rounds' ? `${x.rounds} × ${fmt(x.roundSec)} rounds` : 'Continuous'} · ${Boxing.LEVELS[x.level].label} · ${x.combos} combos${x.done ? '' : ' · stopped early'}</div></div>`;
+        hl.appendChild(c);
+        return;
+      }
       c.innerHTML = `<div class="date"><b>${dt.getDate()}</b><span>${MONTHS[dt.getMonth()]}</span></div>
-        <div style="flex:1;min-width:0"><div style="font-weight:700">${fmtMin(x.sec)} · ${Generator.FOCUS_LABEL[x.focus] || ''}</div>
+        <div style="flex:1;min-width:0"><div style="font-weight:700">${fmtMin(x.sec)} · Kettlebell · ${Generator.FOCUS_LABEL[x.focus] || ''}</div>
         <div class="small muted">${LEVEL_LABEL[x.level]} · ${x.ex.length} exercises${x.done ? '' : ' · stopped early'}</div>
         <div class="small muted" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${x.ex.map((id) => (EX[id] ? EX[id].name : id)).join(' · ')}</div></div>`;
       hl.appendChild(c);
@@ -701,6 +708,11 @@
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible' && !$('#player').hidden && Player.running) Player.wake();
   });
+
+  // Helpers shared with the shadowboxing module (js/boxing.js)
+  function api() {
+    return { S, store, save, Fx, ICON, fmt, fmtSec, fmtMin, toast, $, $$, rerender: render, goTab: (t) => { tab = t; render(); } };
+  }
 
   // Block zoom: iOS Safari ignores user-scalable=no, so stop pinch gestures and fast double-taps here too
   ['gesturestart', 'gesturechange', 'gestureend'].forEach((ev) => document.addEventListener(ev, (e) => e.preventDefault(), { passive: false }));
