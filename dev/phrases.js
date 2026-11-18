@@ -17,6 +17,7 @@ for (const e of EXERCISES) add(e.name, e.name.replace(/\(.*?\)/g, '').replace('+
   'Right hand first.', 'Right leg first.', 'Right side first.', 'Alternate sides.',
   'Switch hands.', 'Switch legs.', 'Switch sides.', 'Right hand.', 'Left hand.', 'Right leg.', 'Left leg.', 'Right side.', 'Left side.',
   'Take thirty seconds.', 'Back to it.', 'Workout complete.', 'Great job!', 'Paused.', "Let's go!",
+  'Begin.', 'Breathe slowly.', 'Relax.', 'Recovery complete.', 'Well done.',
 ].forEach((t) => add(t));
 for (let n = 1; n <= 10; n++) add(String(n), NUM[n] + '.');
 

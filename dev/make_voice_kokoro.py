@@ -24,6 +24,8 @@ with tempfile.TemporaryDirectory() as tmp:
         out = out_root / tag
         out.mkdir(parents=True, exist_ok=True)
         for i, p in enumerate(phrases):
+            if (out / f"{p['key']}.mp3").exists():
+                continue
             samples, sr = k.create(p['speak'], voice=voice, speed=1.0, lang='en-us')
             wav = Path(tmp) / 'clip.wav'
             sf.write(wav, samples, sr)

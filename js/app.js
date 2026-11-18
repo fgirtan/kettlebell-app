@@ -18,7 +18,7 @@
   // ---------- Storage ----------
   const KEY = 'kettlebell.v1';
   const DEFAULTS = {
-    settings: { minutes: 30, level: 1, focus: 'full', sound: true, voice: true, vibrate: true, theme: 'auto', voiceName: '', voiceRate: 1, voiceVol: 1, prepCue: 'ticks', silentMode: true, voiceEngine: 'clips', clipVoice: 'f' },
+    settings: { minutes: 30, level: 1, focus: 'full', sound: true, voice: true, vibrate: true, theme: 'auto', voiceName: '', voiceRate: 1, voiceVol: 1, prepCue: 'ticks', silentMode: true, voiceEngine: 'clips', clipVoice: 'm' },
     plan: null,
     history: [],
   };
@@ -33,6 +33,7 @@
   S.timing = Object.assign({}, Generator.DEFAULT_TIMING, Generator.LEVEL_TIMING[S.level], S.timing);
   store.recent = store.recent || [];
   if (store.plan && store.plan.v !== 3) store.plan = null; // plan from an older version
+  if (!S.maleDefault) { S.clipVoice = 'm'; S.maleDefault = true; } // male voice chosen as the default
   const save = () => { try { localStorage.setItem(KEY, JSON.stringify(store)); } catch (e) { /* storage unavailable */ } };
   save();
 
@@ -54,14 +55,14 @@
   // ---------- Tabs ----------
   let tab = 'home';
   $$('.tabs button').forEach((b) => b.addEventListener('click', () => { tab = b.dataset.tab; render(); window.scrollTo(0, 0); }));
-  const TITLES = { home: 'Kettlebell', boxing: 'Shadowboxing', library: 'Exercises', history: 'History', settings: 'Settings' };
+  const TITLES = { home: 'Kettlebell', boxing: 'Shadowboxing', recovery: 'Recovery', library: 'Exercises', history: 'History', settings: 'Settings' };
 
   function render() {
     $$('.tabs button').forEach((b) => b.classList.toggle('active', b.dataset.tab === tab));
     $('#title').textContent = TITLES[tab];
     const v = $('#view');
     v.innerHTML = '';
-    ({ home: renderHome, boxing: (el) => Boxing.render(el, api()), library: renderLibrary, history: renderHistory, settings: renderSettings })[tab](v);
+    ({ home: renderHome, boxing: (el) => Boxing.render(el, api()), recovery: (el) => Recovery.render(el, api()), library: renderLibrary, history: renderHistory, settings: renderSettings })[tab](v);
   }
 
   // ---------- Home / generator ----------
@@ -280,7 +281,7 @@
   // ---------- Library ----------
   let libQuery = '', libCat = 'all';
   function renderLibrary(v) {
-    const cats = ['all', 'ballistic', 'squat', 'hinge', 'lunge', 'push', 'pull', 'arms', 'core', 'total', 'warmup', 'stretch'];
+    const cats = ['all', 'ballistic', 'squat', 'hinge', 'lunge', 'push', 'pull', 'arms', 'core', 'total', 'warmup', 'stretch', 'recovery'];
     v.innerHTML = `<input class="search" type="search" placeholder="Search exercise or muscle…" value="${libQuery}">
       <div class="chips">${cats.map((c) => `<button class="chip ${c === libCat ? 'on' : ''}" data-c="${c}">${c === 'all' ? 'All' : CAT_LABEL[c]}</button>`).join('')}</div>
       <div class="lib-count"></div><div class="ex-list" id="libList"></div>`;
@@ -319,6 +320,14 @@
     h.slice().reverse().forEach((x) => {
       const dt = new Date(x.date);
       const c = document.createElement('div'); c.className = 'card hist-item';
+      if (x.type === 'recovery') {
+        c.innerHTML = `<div class="date"><b>${dt.getDate()}</b><span>${MONTHS[dt.getMonth()]}</span></div>
+          <div style="flex:1;min-width:0"><div style="font-weight:700">🧘 Recovery · ${fmtMin(x.sec)}</div>
+          <div class="small muted">${(Recovery.FOCUS[x.focus] || {}).label || ''} · ${x.ex.length} moves${x.done ? '' : ' · stopped early'}</div>
+          <div class="small muted" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${x.ex.map((id) => (EX[id] ? EX[id].name : id)).join(' · ')}</div></div>`;
+        hl.appendChild(c);
+        return;
+      }
       if (x.type === 'boxing') {
         c.innerHTML = `<div class="date"><b>${dt.getDate()}</b><span>${MONTHS[dt.getMonth()]}</span></div>
           <div style="flex:1;min-width:0"><div style="font-weight:700">🥊 Shadowboxing · ${fmtMin(x.sec)}</div>
@@ -555,16 +564,16 @@
   if (window.speechSynthesis) speechSynthesis.onvoiceschanged = () => { Fx.voiceObj = null; };
 
   // ---------- Player ----------
-  const PHASE = { prep: 'Get ready', warmup: 'Warm-up', work: 'Work', rest: 'Rest', cooldown: 'Cool-down', switch: 'Switch' };
+  const PHASE = { prep: 'Get ready', warmup: 'Warm-up', work: 'Work', rest: 'Rest', cooldown: 'Cool-down', switch: 'Switch', recover: 'Recovery' };
   // Is the side change about hands or legs?
   const LEG_MOVES = new Set(['sldl', 'kickstand', 'bridge1', 'splitSquat', 'rackLunge', 'suitLunge', 'ohLunge', 'lungeKnee', 's_quad', 's_hipflex']);
-  const limb = (e) => (LEG_MOVES.has(e.id) ? 'leg' : e.cat === 'stretch' ? 'side' : 'hand');
+  const limb = (e) => (LEG_MOVES.has(e.id) ? 'leg' : e.cat === 'stretch' || e.cat === 'recovery' ? 'side' : 'hand');
   const Player = {
     start(plan) {
       Fx.unlock();
       Fx.stopVoice();
       this.plan = plan;
-      this.iv = Generator.buildIntervals(plan);
+      this.iv = plan.intervals ? plan.intervals.map((x) => Object.assign({}, x)) : Generator.buildIntervals(plan);
       this.total = this.iv.reduce((s, x) => s + x.dur, 0);
       this.skipped = 0;
       this.running = true; this.last = performance.now();
@@ -602,6 +611,12 @@
       const x = this.iv[this.idx];
       const box = $('.p-skips', this.el);
       const btns = [];
+      if (this.plan.kind === 'recovery') {
+        if (x.phase === 'prep') btns.push(['startNow', 'Start now']);
+        box.innerHTML = btns.map(([k, l]) => `<button class="chip" data-skip="${k}">${l}</button>`).join('');
+        $$('[data-skip]', box).forEach((b) => (b.onclick = () => this.skipAction(b.dataset.skip)));
+        return;
+      }
       if (x.phase === 'rest' || x.phase === 'prep') { btns.push(['startNow', x.phase === 'rest' ? 'Skip rest' : 'Start now']); if (x.phase === 'rest') btns.push(['add15', '+15s']); }
       if (x.phase === 'work' || x.phase === 'warmup') btns.push(['rest30', 'Rest 30s']);
       if (x.phase === 'warmup' || (x.phase === 'prep' && this.iv[this.idx + 1] && this.iv[this.idx + 1].phase === 'warmup')) btns.push(['skipWarm', 'Skip warm-up']);
@@ -642,7 +657,7 @@
       const e = EX[x.ex];
       this.el.classList.toggle('rest', x.phase === 'rest');
       this.el.classList.toggle('prep', x.phase === 'prep' || x.phase === 'switch');
-      this.el.classList.toggle('cool', x.phase === 'cooldown');
+      this.el.classList.toggle('cool', x.phase === 'cooldown' || x.phase === 'recover');
       $('.p-phase', this.el).textContent = PHASE[x.phase];
       $('.p-label', this.el).textContent = x.label || '';
       $('.p-name', this.el).textContent = (x.phase === 'switch' ? `Left ${limb(e)} next · ` : isRest ? 'Next: ' : '') + e.name;
@@ -661,6 +676,25 @@
 
       const lim = limb(e);
       const prev = i > 0 ? this.iv[i - 1] : null;
+      this.breathSaid = false;
+      if (this.plan.kind === 'recovery') {
+        // calm voice lines: no "Go!", soft chimes
+        if (x.phase === 'prep') {
+          Fx.buzz(40);
+          const sideTxt = e.uni ? '. Right side first' : '';
+          if (first) Fx.say(`Get ready. First up: ${e.name}${sideTxt}.`);
+          else if (e.id === 'r_relax') Fx.say(`Next: ${e.name}.`);
+          else Fx.say(`Next: ${e.name}${sideTxt}.`);
+        } else if (x.phase === 'switch' || x.sideSwitch) {
+          Fx.switchCue(); Fx.buzz([60, 50, 60]); Fx.say('Switch sides.');
+        } else {
+          Fx.beep(660, 0.25, 0.1); Fx.beep(990, 0.4, 0.07, 0.12);
+          if (prev && prev.phase === 'switch') Fx.say('Left side.');
+          else if (e.id === 'r_relax') Fx.say('Relax.');
+          else Fx.say('Begin.');
+        }
+        return;
+      }
       if (x.phase === 'prep') {
         Fx.buzz(60);
         const sideTxt = e.uni ? `. Right ${lim} first` : e.alt ? '. Alternate sides' : '';
@@ -703,9 +737,12 @@
         this.lastBeep = sec;
         const ph = this.iv[this.idx].phase;
         if (ph === 'prep') { if (sec <= 3) Fx.countdown(sec); else if (S.prepCue !== 'off') Fx.tick(); }
-        else if (sec <= 3 && ph !== 'switch') Fx.beep(660, 0.07, 0.1); // soft end-of-interval countdown
+        else if (sec <= 3 && ph !== 'switch' && ph !== 'recover') Fx.beep(660, 0.07, 0.1); // soft end-of-interval countdown
       }
       const x = this.iv[this.idx], e = EX[x.ex];
+      if (this.plan.kind === 'recovery' && x.phase === 'recover' && !this.breathSaid && x.dur >= 40 && this.remain <= x.dur / 2 && e.id !== 'r_relax' && e.id !== 'r_breath') {
+        this.breathSaid = true; Fx.say('Breathe slowly.');
+      }
       const ci = Math.floor((x.dur - this.remain) / 10) % e.cues.length;
       if (ci !== this.cueIdx) { this.cueIdx = ci; $('.p-cue', this.el).textContent = e.cues[ci]; }
       if (this.remain <= 0) {
@@ -733,6 +770,10 @@
     record(done) {
       const sec = Math.round(this.doneSec());
       if (sec < 120) return;
+      if (this.plan.kind === 'recovery') {
+        store.history.push({ type: 'recovery', date: Date.now(), sec, minutes: this.plan.minutes, focus: this.plan.focus, ex: this.plan.items.slice(), done });
+        return save();
+      }
       store.history.push({ date: Date.now(), sec, minutes: this.plan.minutes, focus: this.plan.focus, level: this.plan.level, ex: [...new Set(this.plan.segments.flat())], done });
       save();
     },
@@ -745,9 +786,18 @@
       this.record(true);
       clearInterval(this.timer);
       Figure.stop(this.svg);
+      const sec = Math.round(this.doneSec());
+      if (this.plan.kind === 'recovery') {
+        Fx.beep(523, 0.6, 0.12); Fx.beep(659, 0.6, 0.1, 0.25); Fx.beep(784, 1.0, 0.09, 0.5);
+        Fx.say('Recovery complete. Well done.');
+        this.el.innerHTML = `<div class="p-done"><div class="big">🧘</div><h2>Recovery complete</h2>
+          <p class="muted">${fmtMin(sec)} · ${this.plan.items.length} moves · ${Recovery.FOCUS[this.plan.focus].label}</p>
+          <button class="btn primary big" id="pOk" style="min-width:220px">Done</button></div>`;
+        $('#pOk').onclick = () => { this.close(); tab = 'history'; render(); };
+        return;
+      }
       Fx.beep(660, 0.15); Fx.beep(880, 0.15, 0.25, 0.18); Fx.beep(1100, 0.4, 0.25, 0.36); Fx.buzz([100, 80, 100, 80, 300]);
       Fx.say('Workout complete. Great job!');
-      const sec = Math.round(this.doneSec());
       this.el.innerHTML = `<div class="p-done"><div class="big">💪</div><h2>Workout complete!</h2>
         <p class="muted">${fmtMin(sec)} · ${this.plan.segments.flat().length} exercises · ${Generator.FOCUS_LABEL[this.plan.focus]}</p>
         <button class="btn primary big" id="pOk" style="min-width:220px">Done</button></div>`;
@@ -773,7 +823,7 @@
 
   // Helpers shared with the shadowboxing module (js/boxing.js)
   function api() {
-    return { S, store, save, Fx, ICON, fmt, fmtSec, fmtMin, toast, $, $$, rerender: render, goTab: (t) => { tab = t; render(); } };
+    return { S, store, save, Fx, ICON, fmt, fmtSec, fmtMin, toast, $, $$, rerender: render, goTab: (t) => { tab = t; render(); }, exItem, startPlayer: (plan) => Player.start(plan) };
   }
 
   // Block zoom: iOS Safari ignores user-scalable=no, so stop pinch gestures and fast double-taps here too

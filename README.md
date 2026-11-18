@@ -43,9 +43,18 @@ A separate **Boxing** tab:
 - **Ring cues:** bell at the start and end of each round, a 10-second clapper, optional short freestyle bursts and tips ("hands up", "chin down").
 - **History:** sessions are saved to History.
 
+## Recovery module
+
+A separate **Recovery** tab for quiet, equipment-free sessions (fine for an apartment: no jumps, nothing that thuds on the floor).
+
+- **Settings:** pick 5–60 min, a focus (Full body, Hips & legs, Back & shoulders, Wind-down), hold time (auto 45 s, 60 s for wind-down), get-ready and side-switch time, and an optional breathing opener. The session fits the chosen time exactly.
+- **Flow:** gentle standing mobility (neck, shoulders, hips) and standing stretches first, then down to the floor once: all fours (cat-cow, thread the needle) → kneeling (hip flexor, lizard, pigeon) → seated (butterfly, spinal twist) → on the belly (cobra, sphinx) → on the back (figure-four, happy baby, supine twist, legs up the wall). It ends with relaxed breathing.
+- **Calm voice:** "Next…", "Begin", "Switch sides", a "Breathe slowly" reminder halfway through long holds, and soft chimes instead of loud beeps.
+- **History:** sessions are saved to History; moves from your last session are less likely to come up again.
+
 ## Voice
 
-The coach uses **recorded voice clips** generated with the open-source **Kokoro** TTS: a female voice ("Heart", `audio/f/`) and a male voice ("Michael", `audio/m/`). They play like music, so you hear them **even when an iPhone is on silent**. Settings → Voice lets you pick *Female*, *Male* or *Phone*; the phone voice uses the built-in speech, which is muted on silent.
+The coach uses **recorded voice clips** generated with the open-source **Kokoro** TTS: a male voice ("Michael", `audio/m/`, default) and a female voice ("Heart", `audio/f/`). They play like music, so you hear them **even when an iPhone is on silent**. Settings → Voice lets you pick *Female*, *Male* or *Phone*; the phone voice uses the built-in speech, which is muted on silent.
 
 To regenerate the clips after adding exercises or phrases:
 

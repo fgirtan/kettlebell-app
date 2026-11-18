@@ -1,9 +1,9 @@
 // Offline-first service worker. Bump VERSION when files change.
 importScripts('js/voice-index.js');
-const VERSION = 'kb-v9';
+const VERSION = 'kb-v10';
 const ASSETS = [
   './', 'index.html', 'manifest.webmanifest', 'css/styles.css',
-  'js/voice-index.js', 'js/figure.js', 'js/anims.js', 'js/exercises.js', 'js/generator.js', 'js/boxing.js', 'js/app.js',
+  'js/voice-index.js', 'js/figure.js', 'js/anims.js', 'js/exercises.js', 'js/generator.js', 'js/boxing.js', 'js/recovery.js', 'js/app.js',
   'icons/icon.svg', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/maskable-512.png', 'icons/apple-touch-icon.png',
 ];
 self.addEventListener('install', (e) => {
