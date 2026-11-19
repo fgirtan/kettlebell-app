@@ -16,7 +16,7 @@
   };
 
   // ---------- Storage ----------
-  const APP_VERSION = '2026.11.19 (v20)';
+  const APP_VERSION = '2026.11.19 (v21)';
   const KEY = 'kettlebell.v1';
   const DEFAULTS = {
     settings: { minutes: 30, level: 1, focus: 'full', sound: true, voice: true, vibrate: true, theme: 'auto', voiceName: '', voiceRate: 1, voiceVol: 1, prepCue: 'ticks', silentMode: true, voiceEngine: 'clips', clipVoice: 'm', visual: 'photo', backSafe: true, lowFloor: true, twoBells: false, hrAge: 40, hrWarn: true, hrWarnPct: 85 },
