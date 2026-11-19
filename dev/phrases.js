@@ -11,7 +11,11 @@ const out = new Map();
 const add = (text, speak) => { const k = norm(text); if (k && !out.has(k)) out.set(k, { key: k, speak: speak || text }); };
 
 // ---- Kettlebell ----
-for (const e of EXERCISES) add(e.name, e.name.replace(/\(.*?\)/g, '').replace('+', 'and').replace('&', 'and').trim() + '.');
+require('../js/exercises-lib.js');
+for (const e of EXERCISES) {
+  const speak = e.lib ? e.name.replace(/\s*\((.*?)\)/g, ', $1') : e.name.replace(/\(.*?\)/g, '');
+  add(e.name, speak.replace('+', 'and').replace('&', 'and').replace('’', "'").trim() + '.');
+}
 [
   'Get ready.', 'First up:', 'Next:', 'Next up:', 'Grab your kettlebell.', 'Great work.', 'Cool-down:', 'Rest.', 'Go!',
   'Right hand first.', 'Right leg first.', 'Right side first.', 'Alternate sides.',

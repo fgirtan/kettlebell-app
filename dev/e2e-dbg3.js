@@ -1,0 +1,10 @@
+const { chromium, devices } = require('playwright');
+(async()=>{const b=await chromium.launch();const c=await b.newContext({...devices['iPhone 13']});
+const p=await c.newPage();const errs=[];p.on('pageerror',e=>errs.push(e.message));
+await p.goto('http://localhost:8765/');await p.waitForTimeout(500);
+await p.tap('[data-tab=library]');await p.waitForTimeout(300);
+await p.fill('.search','clean');await p.waitForTimeout(400);
+console.log('clean:',await p.textContent('.lib-count'),await p.$$eval('#libList .ex-item',r=>r.length));
+await p.fill('.search','');await p.waitForTimeout(400);
+console.log('cleared:',await p.textContent('.lib-count'),await p.$$eval('#libList .ex-item',r=>r.length),'value:',JSON.stringify(await p.inputValue('.search')));
+console.log('errors',errs.join(';')||'none');await b.close();})();

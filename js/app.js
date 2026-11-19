@@ -16,10 +16,10 @@
   };
 
   // ---------- Storage ----------
-  const APP_VERSION = '2026.11.19 (v19)';
+  const APP_VERSION = '2026.11.19 (v20)';
   const KEY = 'kettlebell.v1';
   const DEFAULTS = {
-    settings: { minutes: 30, level: 1, focus: 'full', sound: true, voice: true, vibrate: true, theme: 'auto', voiceName: '', voiceRate: 1, voiceVol: 1, prepCue: 'ticks', silentMode: true, voiceEngine: 'clips', clipVoice: 'm', visual: 'photo', backSafe: true, lowFloor: true, hrAge: 40, hrWarn: true, hrWarnPct: 85 },
+    settings: { minutes: 30, level: 1, focus: 'full', sound: true, voice: true, vibrate: true, theme: 'auto', voiceName: '', voiceRate: 1, voiceVol: 1, prepCue: 'ticks', silentMode: true, voiceEngine: 'clips', clipVoice: 'm', visual: 'photo', backSafe: true, lowFloor: true, twoBells: false, hrAge: 40, hrWarn: true, hrWarnPct: 85 },
     plan: null,
     history: [],
   };
@@ -152,6 +152,8 @@
         <div class="seg wrap" id="focus">${Object.entries(Generator.FOCUS_SHORT).map(([k, l]) => `<button data-f="${k}" class="${k === S.focus ? 'on' : ''}">${l}</button>`).join('')}</div>
         <div class="set-row" style="margin-top:6px;border-bottom:0"><div><div>Back-friendly</div><div class="small muted">No swings, cleans or bent-over holds; never two back-loading moves in a row. Strengthens the back with deadlifts, bridges and bird dogs instead.</div></div>
           <label class="switch"><input type="checkbox" id="backSafe" ${S.backSafe !== false ? 'checked' : ''}><span></span></label></div>
+        <div class="set-row" style="border-bottom:0;padding-top:4px"><div><div>I have two kettlebells</div><div class="small muted">Also use exercises that need a bell in each hand.</div></div>
+          <label class="switch"><input type="checkbox" id="twoBells" ${S.twoBells ? 'checked' : ''}><span></span></label></div>
         <div class="set-row" style="border-bottom:0;padding-top:4px"><div><div>Minimal floor work</div><div class="small muted">Almost everything standing; at most 1–2 floor moves at the very end, so you only get down once.</div></div>
           <label class="switch"><input type="checkbox" id="lowFloor" ${S.lowFloor !== false ? 'checked' : ''}><span></span></label></div>
       </div>
@@ -192,6 +194,7 @@
       save(); render();
     }));
     $$('#focus button').forEach((b) => (b.onclick = () => { S.focus = b.dataset.f; save(); $$('#focus button').forEach((x) => x.classList.toggle('on', x === b)); }));
+    $('#twoBells').onchange = (e) => { S.twoBells = e.target.checked; save(); toast('Saved – generate a new workout'); };
     $('#lowFloor').onchange = (e) => { S.lowFloor = e.target.checked; save(); toast('Saved – generate a new workout'); };
     $('#backSafe').onchange = (e) => { S.backSafe = e.target.checked; save(); toast(S.backSafe ? 'Back-friendly on – generate a new workout' : 'Back-friendly off – generate a new workout'); };
 
@@ -227,7 +230,7 @@
     };
 
     $('#gen').onclick = () => {
-      store.plan = Generator.generate({ minutes: S.minutes, level: S.level, focus: S.focus, backSafe: S.backSafe !== false, lowFloor: S.lowFloor !== false, timing: S.timing, recent: recentIds() });
+      store.plan = Generator.generate({ minutes: S.minutes, level: S.level, focus: S.focus, backSafe: S.backSafe !== false, lowFloor: S.lowFloor !== false, twoBells: !!S.twoBells, timing: S.timing, recent: recentIds() });
       store.recent.push(store.plan.main.concat(store.plan.warm, store.plan.cool));
       store.recent = store.recent.slice(-3);
       save(); render();
@@ -246,7 +249,7 @@
     const d = document.createElement('div');
     d.className = 'ex-item';
     d.innerHTML = `${idx !== undefined ? `<div class="num">${idx}</div>` : ''}<div class="thumb"></div>
-      <div class="info"><div class="name">${e.name}</div><div class="meta">${regionTag(e)}${e.muscles.slice(0, 3).join(', ')}${sideNote(e)}</div></div>`;
+      <div class="info"><div class="name">${e.name}</div><div class="meta">${regionTag(e)}${e.eq === 2 ? '<span class="tag">2 bells</span>' : ''}${e.muscles.slice(0, 3).join(', ')}${sideNote(e)}</div></div>`;
     const pk = photoKey(id);
     const own = Media.element(id, { still: true });
     if (own) d.querySelector('.thumb').appendChild(own);
@@ -325,7 +328,8 @@
       <div class="stage"></div>
       ${self.PHOTOS && self.PHOTOS[id] ? `<div class="seg mini" id="visSeg" style="max-width:260px;margin:0 auto 10px">${[['photo', 'Real photos'], ['figure', 'Animation']].map(([v, l]) => `<button data-v="${v}" class="${(S.visual === 'figure' ? 'figure' : 'photo') === v ? 'on' : ''}">${l}</button>`).join('')}</div>` : ''}
       <h2>${e.name}</h2>
-      <p style="margin:10px 0 4px">${regionTag(e)}<span class="tag">${CAT_LABEL[e.cat]}</span><span class="tag">${LEVEL_LABEL[e.level]}</span>${e.uni ? '<span class="tag">each side</span>' : ''}${e.alt ? '<span class="tag">alternating</span>' : ''}${e.floor ? '<span class="tag">on the floor</span>' : ''}${e.bw ? '<span class="tag">bodyweight</span>' : ''}</p>
+      <p style="margin:10px 0 4px">${regionTag(e)}<span class="tag">${CAT_LABEL[e.cat]}</span><span class="tag">${LEVEL_LABEL[e.level]}</span>${e.uni ? '<span class="tag">each side</span>' : ''}${e.alt ? '<span class="tag">alternating</span>' : ''}${e.floor ? '<span class="tag">on the floor</span>' : ''}${e.bw ? '<span class="tag">bodyweight</span>' : ''}${e.eq === 2 ? '<span class="tag">2 kettlebells</span>' : ''}<span class="tag back${backOf(e)}">Back load: ${['low', 'moderate', 'high'][backOf(e)]}</span></p>
+      ${e.lib ? '<p class="small muted" style="margin:4px 0 0">From the Caveman Kettlebells exercise list · animation shows the closest basic movement – tap ▶ Watch real demo for the exact variation.</p>' : ''}
       <p class="small muted" style="margin:6px 0 0">Muscles: ${e.muscles.join(', ')}</p>
       <div class="media-actions">
         <button class="btn ghost" id="watchDemo">▶ Watch real demo</button>
@@ -376,20 +380,47 @@
     sh.onclick = (ev) => { if (ev.target === sh) close(); };
   }
 
+  // ---------- Exercise filters (library + custom picker) ----------
+  const isFloorEx = (e) => !!e.floor || ['pushup', 'plankRow', 'plankDrag', 'plank', 'russianTwist', 'vsit', 'tgu', 'birdDog', 'floorPress', 'floorPress2', 'pullover', 'skull', 'situp', 'crunch', 'deadbug', 'hollow', 'legRaise', 'bridge', 'bridge1', 'deadbugPull', 'halfKneelPress', 'haloKneel'].includes(e.anim) || ['s_child', 's_cobra', 's_seated', 's_knees', 's_dog', 's_hipflex', 'w_inch', 'w_birddog', 'w_bridge'].includes(e.id);
+  const backOf = (e) => (e.back !== undefined ? e.back : (Generator.BACK[e.id] || 0));
+  const FILTERS = [['one', '1 kettlebell', (e) => e.eq !== 2], ['stand', 'Standing', (e) => !isFloorEx(e)], ['back', 'Back-friendly', (e) => backOf(e) < 2], ['easy', 'Beginner', (e) => e.level === 1]];
+  function filterBar(state, onChange) {
+    const d = document.createElement('div');
+    d.className = 'chips filters';
+    d.innerHTML = FILTERS.map(([k, l]) => `<button class="chip ${state[k] ? 'on' : ''}" data-f="${k}">${state[k] ? '✓ ' : ''}${l}</button>`).join('');
+    $$('button', d).forEach((b) => (b.onclick = () => { state[b.dataset.f] = !state[b.dataset.f]; save(); onChange(); }));
+    return d;
+  }
+  const passFilters = (e, state) => FILTERS.every(([k, , fn]) => !state[k] || fn(e));
+  // Render long lists in batches so 500+ exercises stay fast on a phone
+  function batchList(box, items, make, step = 40) {
+    let shown = 0;
+    const more = document.createElement('button'); more.className = 'btn ghost block'; more.style.marginTop = '8px';
+    const next = () => {
+      items.slice(shown, shown + step).forEach((x) => box.insertBefore(make(x), more));
+      shown = Math.min(items.length, shown + step);
+      more.hidden = shown >= items.length; more.textContent = `Show more (${items.length - shown} left)`;
+    };
+    box.appendChild(more); more.onclick = next; next();
+  }
+
   // ---------- Library ----------
   let libQuery = '', libCat = 'all';
   function renderLibrary(v) {
-    const cats = ['all', 'ballistic', 'squat', 'hinge', 'lunge', 'push', 'pull', 'arms', 'core', 'total', 'warmup', 'stretch', 'recovery'];
-    v.innerHTML = `<input class="search" type="search" placeholder="Search exercise or muscle…" value="${libQuery}">
+    const cats = ['all', 'ballistic', 'squat', 'hinge', 'lunge', 'push', 'pull', 'arms', 'core', 'total', 'flow', 'juggling', 'warmup', 'stretch', 'recovery'];
+    S.libFilters = S.libFilters || {};
+    v.innerHTML = `<input class="search" type="search" placeholder="Search ${EXERCISES.length} exercises or a muscle…" value="${libQuery}">
       <div class="chips">${cats.map((c) => `<button class="chip ${c === libCat ? 'on' : ''}" data-c="${c}">${c === 'all' ? 'All' : CAT_LABEL[c]}</button>`).join('')}</div>
+      <div id="libFilters"></div>
       <div class="lib-count"></div><div class="ex-list" id="libList"></div>`;
     const draw = () => {
+      const fb = $('#libFilters'); fb.innerHTML = ''; fb.appendChild(filterBar(S.libFilters, draw));
       const q = libQuery.trim().toLowerCase();
-      const items = EXERCISES.filter((e) => (libCat === 'all' || e.cat === libCat) &&
+      const items = EXERCISES.filter((e) => (libCat === 'all' || e.cat === libCat) && passFilters(e, S.libFilters) &&
         (!q || [e.name, e.muscles.join(' '), CAT_LABEL[e.cat]].join(' ').toLowerCase().includes(q)));
       $('.lib-count').textContent = `${items.length} exercises`;
       const list = $('#libList'); list.innerHTML = '';
-      items.forEach((e) => list.appendChild(exItem(e.id)));
+      batchList(list, items, (e) => exItem(e.id));
     };
     $('.search').oninput = (e) => { libQuery = e.target.value; draw(); };
     $$('.chip[data-c]').forEach((c) => (c.onclick = () => { libCat = c.dataset.c; $$('.chip[data-c]').forEach((x) => x.classList.toggle('on', x === c)); draw(); }));
@@ -1022,7 +1053,7 @@
 
   // Helpers shared with the shadowboxing module (js/boxing.js)
   function api() {
-    return { S, store, save, Fx, ICON, fmt, fmtSec, fmtMin, toast, $, $$, rerender: render, HRUI, openSheet, goTab: (t) => { tab = t; render(); }, exItem, startPlayer: (plan) => Player.start(plan) };
+    return { S, store, save, Fx, ICON, fmt, fmtSec, fmtMin, toast, $, $$, rerender: render, HRUI, openSheet, filterBar, passFilters, batchList, goTab: (t) => { tab = t; render(); }, exItem, startPlayer: (plan) => Player.start(plan) };
   }
 
   // Block zoom: iOS Safari ignores user-scalable=no, so stop pinch gestures and fast double-taps here too

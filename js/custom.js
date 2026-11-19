@@ -128,12 +128,14 @@
   function openPicker(api, done) {
     const { $, $$, S, toast, ICON } = api;
     const sh = $('#sheet');
-    const cats = ['all', 'squat', 'hinge', 'lunge', 'push', 'pull', 'arms', 'core', 'total', 'ballistic', 'warmup', 'stretch', 'recovery'];
+    const cats = ['all', 'squat', 'hinge', 'lunge', 'push', 'pull', 'arms', 'core', 'total', 'ballistic', 'flow', 'juggling', 'warmup', 'stretch', 'recovery'];
+    S.pickFilters = S.pickFilters || { one: !S.twoBells };
     sh.innerHTML = `<div class="sheet-body" role="dialog" aria-label="Add exercises">
       <div class="grab"></div>
       <div class="row"><h2 style="font-size:20px">Add exercises</h2><div class="spacer"></div><button class="btn primary" id="pkDone">Done</button></div>
       <input class="search" type="search" placeholder="Search…" value="${pickerQuery}" style="margin-top:12px">
       <div class="chips">${cats.map((c) => `<button class="chip ${c === pickerCat ? 'on' : ''}" data-c="${c}">${c === 'all' ? 'All' : CAT_LABEL[c]}</button>`).join('')}</div>
+      <div id="pkFilters"></div>
       <div class="small muted" id="pkCount" style="margin:8px 2px"></div>
       <div class="ex-list" id="pkList"></div></div>`;
     sh.hidden = false;
@@ -141,10 +143,11 @@
     let added = 0;
     const draw = () => {
       const q = pickerQuery.trim().toLowerCase();
-      const items = EXERCISES.filter((e) => (pickerCat === 'all' || e.cat === pickerCat) && (!q || [e.name, e.muscles.join(' ')].join(' ').toLowerCase().includes(q)));
+      const fb = $('#pkFilters', sh); fb.innerHTML = ''; fb.appendChild(api.filterBar(S.pickFilters, draw));
+      const items = EXERCISES.filter((e) => (pickerCat === 'all' || e.cat === pickerCat) && api.passFilters(e, S.pickFilters) && (!q || [e.name, e.muscles.join(' ')].join(' ').toLowerCase().includes(q)));
       $('#pkCount', sh).textContent = `${items.length} exercises · tap + to add${added ? ` · ${added} added` : ''}`;
       const box = $('#pkList', sh); box.innerHTML = '';
-      items.forEach((e) => {
+      api.batchList(box, items, (e) => {
         const add = () => { editing.items.push({ ex: e.id, sec: S.timing.work }); added++; toast(`Added ${e.name}`); draw(); };
         const row = api.exItem(e.id, undefined, { onSwap: add });
         row.querySelector('.info').onclick = add; row.querySelector('.thumb').onclick = add;
@@ -152,7 +155,7 @@
         if (btn) { btn.innerHTML = ICON.plus.replace('<svg', '<svg fill="none" stroke="currentColor" stroke-width="2.4"'); btn.setAttribute('aria-label', 'Add'); }
         const n = editing.items.filter((it) => it.ex === e.id).length;
         if (n) row.classList.add('picked');
-        box.appendChild(row);
+        return row;
       });
     };
     $('.search', sh).oninput = (e) => { pickerQuery = e.target.value; draw(); };

@@ -43,7 +43,7 @@
     rackLunge: 1, suitLunge: 1, ohLunge: 2, lungeKnee: 1, latLunge: 1, curtsy: 1, press: 0, press2: 0, bottomsUp: 0, triExt: 1,
     carry: 1, rackMarch: 1, ohMarch: 1, tgu: 1, uprightRow: 0, boxSquat: 0, supRow: 0, standPull: 0, sideBend: 1, ohSideBend: 1, squatHold: 1, squatLift: 1, passUnderLunge: 1,
   };
-  const back = (e) => BACK[e.id] || 0;
+  const back = (e) => (e.back !== undefined ? e.back : BACK[e.id] || 0);
   // small accessory moves shouldn't crowd out the main lifts
   const PICK_WEIGHT = { calfRaise: 0.3, lateralRaise: 0.6, frontRaise: 0.6, curl: 0.8, curl1: 0.8 };
 
@@ -65,7 +65,8 @@
   const NEAR = new Set(['hang|goblet', 'goblet|rack', 'rack|oh', 'goblet|kneel', 'rack|kneel', 'supine|seated', 'supine|prone', 'prone|seated', 'kneel|prone']);
   const startPos = (e) => { const p = POS[e.anim] || 'hang'; return Array.isArray(p) ? p[0] : p; };
   const endPos = (e) => { const p = POS[e.anim] || 'hang'; return Array.isArray(p) ? p[1] : p; };
-  const onFloor = (e) => !STANDING.has(startPos(e));
+  const baseName = (e) => e.name.replace(/\s*\([^)]*\)\s*$/, '').toLowerCase();
+  const onFloor = (e) => !!e.floor || !STANDING.has(startPos(e));
   function posCost(a, b) {
     if (a === b) return 0;
     if (NEAR.has(a + '|' + b) || NEAR.has(b + '|' + a)) return 1;
@@ -92,7 +93,9 @@
     return items.length ? items[items.length - 1][0] : null;
   };
 
+  let twoBells = false; // set per generation: include exercises that need two kettlebells
   function allowed(e, level, backSafe) {
+    if (e.eq === 2 && !twoBells) return false;
     return e.level <= level && !['warmup', 'stretch', 'recovery'].includes(e.cat) && !(backSafe && back(e) >= 2);
   }
 
@@ -124,11 +127,14 @@
   function pickNext(slot, ctx) {
     const { level, backSafe, seq, used, recent, f, maxUses, floorOk, floorOnly } = ctx;
     const idx = seq.length;
+    // versions of the same move (e.g. "... (single arm)" / "... (two hands)") count as the same exercise
+    const baseUsed = new Set(seq.map((x) => baseName(x)));
+    const fresh = (e) => !used.has(e.id) && !baseUsed.has(baseName(e));
     const canRepeat = (e, gap) => e.staple && used.has(e.id) && idx - used.get(e.id).last >= gap && used.get(e.id).count < maxUses;
     const inSlot = (s) => EXERCISES.filter((e) => SLOT_CATS[s].includes(e.cat) && allowed(e, level, backSafe) && (floorOk || !onFloor(e)) && (!floorOnly || onFloor(e)));
     const tries = [
-      () => inSlot(slot).filter((e) => !used.has(e.id)),
-      ...(FALLBACK[slot] || []).map((s) => () => inSlot(s).filter((e) => !used.has(e.id))),
+      () => inSlot(slot).filter(fresh),
+      ...(FALLBACK[slot] || []).map((s) => () => inSlot(s).filter(fresh)),
       () => inSlot(slot).filter((e) => canRepeat(e, 6)),
       ...(FALLBACK[slot] || []).map((s) => () => inSlot(s).filter((e) => canRepeat(e, 6))),
       () => inSlot(slot).filter((e) => !used.has(e.id) || idx - used.get(e.id).last >= 3),
@@ -149,7 +155,7 @@
       const scored = list.map((e) => [e, transitionCost(e, seq, f, slot)]);
       const best = Math.min(...scored.map((x) => x[1]));
       const near = scored.filter((x) => x[1] <= best + 3); // the most natural options, then vary among them
-      return weightedPick(near.map(([e]) => [e, (e.level === level ? 3 : e.level === level - 1 ? 2 : 1) * (recent.has(e.id) ? 0.15 : 1) * (used.has(e.id) ? 0.5 : 1) * (PICK_WEIGHT[e.id] || 1)]));
+      return weightedPick(near.map(([e]) => [e, (e.level === level ? 3 : e.level === level - 1 ? 2 : 1) * (recent.has(e.id) ? 0.15 : 1) * (used.has(e.id) ? 0.5 : 1) * (PICK_WEIGHT[e.id] || 1) * (e.lib ? 0.35 : 1)]));
     }
     return null;
   }
@@ -223,6 +229,7 @@
   function generate(opts) {
     const minutes = opts.minutes, level = opts.level, focus = opts.focus || 'full';
     const backSafe = opts.backSafe !== false;
+    twoBells = !!opts.twoBells;
     const lowFloor = opts.lowFloor !== false;
     const t = normTiming(opts.timing);
     const target = minutes * 60;
@@ -231,7 +238,7 @@
     const main = buildMain(t, level, focus, backSafe, B.mainSec, recent, null, lowFloor);
     const warm = t.warmOn ? pickOrdered('warmup', WARM_MUST, Math.max(2, Math.round(B.warmSec / 30)), recent, null, lowFloor) : [];
     const cool = t.coolOn ? pickOrdered('stretch', COOL_MUST, Math.max(2, Math.round(B.coolSec / 35)), recent, null, lowFloor) : [];
-    return { v: 4, minutes, level, focus, backSafe, lowFloor, target, timing: t, warm, cool, warmSec: B.warmSec, coolSec: B.coolSec, main, created: Date.now() };
+    return { v: 4, minutes, level, focus, backSafe, lowFloor, twoBells, target, timing: t, warm, cool, warmSec: B.warmSec, coolSec: B.coolSec, main, created: Date.now() };
   }
 
   // Apply new timing to an existing plan, keeping as many of its exercises as possible.
@@ -240,6 +247,7 @@
     const B = budget(plan.target, t);
     plan.timing = t;
     plan.warmSec = B.warmSec; plan.coolSec = B.coolSec;
+    twoBells = !!plan.twoBells;
     plan.main = buildMain(t, plan.level, plan.focus, plan.backSafe !== false, B.mainSec, new Set(), plan.main, plan.lowFloor !== false);
     const nw = t.warmOn ? Math.max(2, Math.round(B.warmSec / 30)) : 0;
     if (nw !== plan.warm.length) plan.warm = nw ? pickOrdered('warmup', WARM_MUST, nw, new Set(), plan.warm, plan.lowFloor !== false) : [];
@@ -373,7 +381,8 @@
     const curFloor = FLOOR_WC.has(id) || (!['warmup', 'stretch', 'recovery'].includes(cur.cat) && onFloor(cur));
     const floorFree = plan.lowFloor !== false && !plan.kind && !curFloor;
     const isFloor = (e) => FLOOR_WC.has(e.id) || (!['warmup', 'stretch', 'recovery'].includes(e.cat) && onFloor(e));
-    const ok = (e) => e.id !== id && !avoid.has(e.id) && (!sameShape || (!!e.uni === !!cur.uni)) && !(floorFree && isFloor(e));
+    twoBells = !!plan.twoBells || plan.kind === 'custom';
+    const ok = (e) => e.id !== id && !avoid.has(e.id) && !(e.eq === 2 && !twoBells) && (!sameShape || (!!e.uni === !!cur.uni)) && !(floorFree && isFloor(e));
     let list;
     if (['warmup', 'stretch', 'recovery'].includes(cur.cat)) {
       list = EXERCISES.filter((e) => e.cat === cur.cat && ok(e));

@@ -388,7 +388,7 @@
   const CAT_LABEL = {
     ballistic: 'Ballistic (swing/clean)', squat: 'Squat', hinge: 'Hinge / posterior chain', lunge: 'Lunge',
     push: 'Push (chest/shoulders)', pull: 'Pull (back)', arms: 'Arms', core: 'Core', total: 'Total body / carry',
-    warmup: 'Warm-up', stretch: 'Stretching', recovery: 'Recovery',
+    warmup: 'Warm-up', stretch: 'Stretching', recovery: 'Recovery', flow: 'Flows / complexes', juggling: 'Juggling (advanced)',
   };
   const LEVEL_LABEL = { 1: 'Beginner', 2: 'Intermediate', 3: 'Advanced' };
 

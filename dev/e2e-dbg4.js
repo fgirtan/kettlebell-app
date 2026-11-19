@@ -1,0 +1,10 @@
+const { chromium, devices } = require('playwright');
+(async()=>{const b=await chromium.launch();const c=await b.newContext({...devices['iPhone 13']});
+const p=await c.newPage();const errs=[];p.on('pageerror',e=>errs.push(e.message));
+await p.goto('http://localhost:8765/');await p.waitForTimeout(500);
+await p.tap('[data-tab=library]');await p.waitForTimeout(400);
+const mb=await p.$('#libList .btn.ghost:not([hidden])');console.log('more button:',mb?await mb.textContent():'none');
+await mb.scrollIntoViewIfNeeded();await mb.tap();await p.waitForTimeout(500);
+console.log('rows after tap:',await p.$$eval('#libList .ex-item',r=>r.length),'| tab:',await p.textContent('#title'));
+await p.evaluate(()=>document.querySelector('#libList .btn.ghost').click());await p.waitForTimeout(300);
+console.log('rows after click:',await p.$$eval('#libList .ex-item',r=>r.length),'errors',errs.join(';')||'none');await b.close();})();
