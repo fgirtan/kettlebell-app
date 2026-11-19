@@ -7,10 +7,16 @@ A Progressive Web App for kettlebell training. Install it on your phone's home s
 - **Workouts built around your time.** Pick 5–90 minutes. The selected time is the **total**, to the second: warm-up, work, rests, get-ready countdowns and cool-down are all included.
 - **An animation for every exercise.** Each move has an animated side-view figure holding the kettlebell.
 - **94 exercises.** That's 72 main exercises (swings, cleans, snatches, squats, deadlifts, lunges, presses, rows, arms, core, Turkish get-up, carries), 11 warm-up moves and 11 stretches. Each one has coaching cues and a common mistake to avoid.
-- **One continuous, varied session (no sets).** The main part is a run of different exercises grouped into mini full-body circuits of 5–6 moves, with a real rest only between circuits.
-  - **Natural flow:** explosive lifts come first, then each move starts where the last one ended (bell at the hips → at the chest → racked → overhead → floor). The same muscles never get hit back to back, and floor work comes at the end of a circuit.
-  - **Repeats only where it makes sense:** fundamentals such as swings, the goblet squat, deadlift, push-up, row and plank can come back (never within the next circuit). Complex lifts such as the Turkish get-up or windmill don't repeat.
-  - **Always different:** exercises from your last few workouts are pushed down the list, and the circuit makeup varies.
+- **One continuous sequence (no circuits).** You choose the total time; the app builds a run of exercises with a rest after every *N* exercises (your setting).
+  - **Natural order:** a repeating pattern of squat/lunge → press → hinge → row/pullover → core, so you go from legs to upper body to hips to back to trunk, and every area rests before it's used again. Each move also starts where the last one ended (bell at the hips → chest → racked → overhead → floor).
+  - **Back-friendly mode (on by default):**
+    - Every exercise has a lower-back load rating.
+    - High-load moves (swings, cleans, snatches, good mornings, bent-over two-hand rows, windmills…) are left out.
+    - Two back-loading moves are never placed one after the other.
+    - The back is strengthened with deadlifts, glute bridges, bird dogs, dead bugs and supported rows.
+  - **Gradual intensity:** controlled basics first, the more demanding moves in the middle, calmer floor/core work at the end.
+  - **Repeats only where it makes sense:** fundamentals can come back (spaced out); recent exercises are avoided so workouts differ.
+- **Skip swaps, it doesn't cut time.** Skip during an exercise (or its get-ready) replaces it with a similar move from the same movement group, with the same one-/two-sided structure, and the clock keeps running. Skip during a rest ends the rest.
 - **Configurable timing** (Workout tab → Timing):
   - Work time
   - Get-ready countdown between exercises

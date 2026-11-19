@@ -153,7 +153,7 @@
     { id: 'uprightRow', name: 'Upright Row', cat: 'pull', region: 'upper', muscles: ['shoulders', 'traps'], level: 1, anim: 'uprightRow',
       cues: ['Hold the handle, arms straight.', 'Drive the elbows up as the bell rises close to the body.', 'Stop at chest height if your shoulders are sensitive.'],
       avoid: 'Shrugging the shoulders to the ears.' },
-    { id: 'pullover', name: 'Kettlebell Pullover', cat: 'pull', region: 'upper', muscles: ['lats', 'chest', 'core'], level: 1, anim: 'pullover', floor: true,
+    { id: 'pullover', staple: true, name: 'Chest Pullover', cat: 'pull', region: 'upper', muscles: ['lats', 'chest', 'core'], level: 1, anim: 'pullover', floor: true,
       cues: ['On your back, bell by the horns over the chest.', 'Lower it behind your head with nearly straight arms.', 'Bring it back using the lats.'],
       avoid: 'Arching the back when the bell is low.' },
 
@@ -240,6 +240,26 @@
     { id: 'ohMarch', name: 'Overhead March', cat: 'total', region: 'total', muscles: ['shoulders', 'core'], level: 2, anim: 'ohMarch', uni: true,
       cues: ['Bell locked out overhead.', 'Arm vertical, biceps by the ear.', 'Small, controlled steps.'],
       avoid: 'The elbow giving way.' },
+
+    // ---------------- BACK-FRIENDLY ADDITIONS ----------------
+    { id: 'supRow', staple: true, name: 'Supported One-Arm Row', cat: 'pull', region: 'upper', muscles: ['back', 'biceps', 'rear delts'], level: 1, anim: 'rowSup', uni: true,
+      cues: ['Staggered stance, free hand on your front thigh or a chair.', 'Torso at about 45°, back flat – the support takes the strain off the lower back.', 'Pull the elbow toward the hip, pause, lower slowly.'],
+      avoid: 'Twisting the torso or letting the back round.' },
+    { id: 'standPull', staple: true, name: 'Standing Pullover', cat: 'pull', region: 'upper', muscles: ['lats', 'shoulders', 'core'], level: 1, anim: 'standPullover',
+      cues: ['Hold the bell by the horns, arms straight overhead.', 'Ribs down, glutes tight – don’t arch the lower back.', 'Lower the bell in an arc to chest height, then back up.'],
+      avoid: 'Leaning back to get the bell overhead.' },
+    { id: 'tkHalo', staple: true, name: 'Tall-Kneeling Halo', cat: 'core', region: 'core', muscles: ['shoulders', 'core', 'mobility'], level: 1, anim: 'haloKneel', alt: true,
+      cues: ['Kneel on a soft surface, hips forward, glutes squeezed.', 'Circle the bell slowly and close around your head.', 'Kneeling takes the lower back out of the movement.'],
+      avoid: 'Sitting back on the heels or arching the back.' },
+    { id: 'boxSquat', staple: true, name: 'Goblet Box Squat', cat: 'squat', region: 'lower', muscles: ['quads', 'glutes', 'core'], level: 1, anim: 'boxSquat',
+      cues: ['Stand in front of a chair or sofa, bell at the chest.', 'Sit back until you lightly touch the seat, then stand up.', 'Keeps the depth controlled and the torso upright.'],
+      avoid: 'Dropping onto the seat or rounding the back.' },
+    { id: 'deadbugPull', staple: true, name: 'Dead Bug Pullover', cat: 'core', region: 'core', muscles: ['abs', 'lats', 'core'], level: 1, anim: 'deadbugPull', floor: true, alt: true,
+      cues: ['On your back, knees at 90°, bell held over the chest.', 'Lower the bell behind your head as one leg straightens.', 'Lower back stays glued to the floor; exhale as you reach.'],
+      avoid: 'Lower back lifting off the floor.' },
+    { id: 'birdDog', staple: true, name: 'Slow Bird Dog', cat: 'core', region: 'core', muscles: ['lower back', 'glutes', 'core'], level: 1, anim: 'birdDog', floor: true, alt: true, bw: true,
+      cues: ['On all fours, hands under shoulders, knees under hips.', 'Reach one arm and the opposite leg long, hold 2 seconds.', 'Keep the back flat like a table – strengthens the lower back without load.'],
+      avoid: 'Twisting the hips or arching the back.' },
 
     // ---------------- WARM-UP ----------------
     { id: 'w_march', name: 'High-Knee March', cat: 'warmup', region: 'total', muscles: ['cardio'], level: 1, anim: 'march', bw: true, order: 1,

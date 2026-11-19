@@ -1,7 +1,16 @@
-// Workout generator: one continuous, varied session that fits the selected total time exactly.
-// The main part is a sequence of mini full-body circuits ("segments") of `restEvery` exercises,
-// with a real rest only between segments. Warm-up, get-ready countdowns, side switches,
-// rests and cool-down are all counted in the total.
+// Workout generator: one continuous sequence of exercises + rests that fits the selected total time exactly.
+//
+// How the order is built (inspired by common full-body kettlebell programming):
+//  * A repeating movement pattern – squat/lunge → press → hinge → row/pullover → core – so the body moves
+//    from legs to upper body to posterior chain to back to trunk, and every area gets a break before it
+//    is used again.
+//  * Lower-back load is tracked for every exercise. Two back-loading moves are never placed back to back,
+//    and in back-friendly mode (default) high-load moves (swings, cleans, snatches, good mornings, bent-over
+//    holds…) are left out entirely; hinges become deadlifts, glute bridges and kickstand variations.
+//  * Intensity builds gradually: simple, controlled moves first, the most demanding work in the middle,
+//    calmer floor/core work at the end.
+//  * Each move starts where the last one ended (bell at the hips → chest → racked → overhead → floor),
+//    so there is little getting up and down.
 (function (global) {
   const LEVEL_TIMING = {
     1: { work: 30, rest: 45, restEvery: 5 },
@@ -10,22 +19,33 @@
   };
   const DEFAULT_TIMING = Object.assign({ prep: 5, switch: 2, warmOn: true, warmMin: 0, coolOn: true, coolMin: 0 }, LEVEL_TIMING[1]);
 
-  // What each segment should contain, by focus (the first slots matter most).
-  const SEGMENT = {
-    full: { base: ['ballistic', 'squat', 'push', 'pull', 'core', 'hinge'], extra: ['lunge', 'total', 'hinge', 'core', 'arms', 'lunge'] },
-    lower: { base: ['ballistic', 'squat', 'hinge', 'lunge', 'core', 'pull'], extra: ['squat', 'lunge', 'hinge', 'push', 'total'] },
-    upper: { base: ['push', 'pull', 'ballistic', 'arms', 'core', 'push'], extra: ['pull', 'arms', 'total', 'squat', 'push'] },
-    core: { base: ['ballistic', 'core', 'squat', 'core', 'push', 'pull'], extra: ['core', 'lunge', 'total', 'hinge', 'core'] },
+  // Movement slots and the exercise categories that can fill them
+  const SLOT_CATS = { knee: ['squat', 'lunge'], push: ['push'], hinge: ['hinge', 'ballistic'], pull: ['pull'], core: ['core'], arms: ['arms'], total: ['total'] };
+  const CAT_SLOT = { squat: 'knee', lunge: 'knee', push: 'push', hinge: 'hinge', ballistic: 'hinge', pull: 'pull', core: 'core', arms: 'arms', total: 'total' };
+  const PATTERNS = {
+    full: ['knee', 'push', 'hinge', 'pull', 'core'],
+    lower: ['knee', 'push', 'hinge', 'core', 'knee', 'pull', 'hinge', 'core'],
+    upper: ['push', 'knee', 'pull', 'core', 'arms', 'hinge', 'push', 'pull'],
+    core: ['knee', 'core', 'push', 'core', 'hinge', 'pull', 'core'],
   };
-  // Where to look when a category has nothing fresh left
-  const FALLBACK = {
-    ballistic: ['hinge', 'total'], squat: ['lunge', 'total'], lunge: ['squat', 'hinge'], hinge: ['ballistic', 'lunge'],
-    push: ['total', 'arms'], pull: ['arms', 'total'], arms: ['push', 'pull'], core: ['total', 'hinge'], total: ['core', 'ballistic'],
-  };
+  // Occasional variety: some waves swap a slot for a total-body or arm move
+  const VARIANTS = { push: ['total', 'arms'], pull: ['arms'] };
+  const FALLBACK = { knee: ['total'], push: ['arms', 'total'], hinge: ['knee'], pull: ['arms', 'push'], core: ['total'], arms: ['push', 'pull'], total: ['knee', 'core'] };
   const FOCUS_SHORT = { full: 'Full body', lower: 'Legs', upper: 'Upper body', core: 'Core' };
   const FOCUS_LABEL = { full: 'Full body', lower: 'Legs focus', upper: 'Upper body focus', core: 'Core focus' };
 
-  // Body / kettlebell position at the start and end of each movement, used to make transitions natural.
+  // Lower-back load: 0 = low, 1 = moderate, 2 = high (left out in back-friendly mode)
+  const BACK = {
+    swing2: 2, swing1: 2, swingAlt: 2, deadStop: 2, swingAm: 2, cleanHang: 2, deadClean: 2, snatch: 2, cleanPress: 2,
+    rdl: 2, goodMorning: 2, row2: 2, highPull: 2, fig8: 2, windmill: 2, woodchop: 2, situp: 1, russianTwist: 1, vsit: 1, legRaise: 1,
+    deadlift: 1, sumoDL: 1, suitcaseDL: 1, kickstand: 1, sldl: 1, row: 1, plankRow: 1, pushPress: 1, thruster: 1, thruster2: 1,
+    goblet: 1, gobletPause: 1, squatPulse: 1, rackSquat: 1, sumoSquat: 1, cossack: 1, revLunge: 1, fwdLunge: 1, splitSquat: 1,
+    rackLunge: 1, suitLunge: 1, ohLunge: 2, lungeKnee: 1, latLunge: 1, curtsy: 1, press: 1, press2: 1, bottomsUp: 1, triExt: 1,
+    carry: 1, rackMarch: 1, ohMarch: 1, tgu: 1, uprightRow: 0, boxSquat: 0, supRow: 0, standPull: 0,
+  };
+  const back = (e) => BACK[e.id] || 0;
+
+  // Body / kettlebell position at the start and end of each movement
   const POS = {
     swing2: 'hang', swing1: 'hang', swingAlt: 'hang', swingAm: 'hang', deadStop: 'hang', clean: ['hang', 'rack'], deadClean: ['hang', 'rack'],
     snatch: ['hang', 'oh'], cleanPress: ['hang', 'rack'], deadlift: 'hang', suitcaseDL: 'hang', rdl: 'hang', sldl: 'hang', kickstand: 'hang',
@@ -37,11 +57,13 @@
     situp: 'supine', crunch: 'supine', halo: 'goblet', aroundWorld: 'hang', fig8: 'hang', deadbug: 'supine', hollow: 'supine', vsit: 'seated',
     legRaise: 'supine', plankDrag: 'prone', plank: 'prone', woodchop: 'hang', windmill: 'oh', thruster: 'rack', thruster2: 'goblet',
     carry: 'hang', rackMarch: 'rack', ohMarch: 'oh', tgu: 'supine',
+    rowSup: 'hang', standPullover: 'goblet', haloKneel: 'kneel', boxSquat: 'goblet', deadbugPull: 'supine', birdDog: 'prone',
   };
   const STANDING = new Set(['hang', 'goblet', 'rack', 'oh']);
-  const NEAR = new Set(['hang|goblet', 'goblet|rack', 'rack|oh', 'goblet|kneel', 'rack|kneel', 'supine|seated', 'supine|prone', 'prone|seated']);
+  const NEAR = new Set(['hang|goblet', 'goblet|rack', 'rack|oh', 'goblet|kneel', 'rack|kneel', 'supine|seated', 'supine|prone', 'prone|seated', 'kneel|prone']);
   const startPos = (e) => { const p = POS[e.anim] || 'hang'; return Array.isArray(p) ? p[0] : p; };
   const endPos = (e) => { const p = POS[e.anim] || 'hang'; return Array.isArray(p) ? p[1] : p; };
+  const onFloor = (e) => !STANDING.has(startPos(e));
   function posCost(a, b) {
     if (a === b) return 0;
     if (NEAR.has(a + '|' + b) || NEAR.has(b + '|' + a)) return 1;
@@ -54,6 +76,7 @@
 
   const WARM_MUST = ['w_march', 'w_wgs'];
   const COOL_MUST = ['s_fold', 's_child'];
+  const IGNORE_MUSCLE = new Set(['cardio', 'core', 'balance', 'mobility']);
 
   const rnd = (n) => Math.floor(Math.random() * n);
   const shuffle = (a) => { a = a.slice(); for (let i = a.length - 1; i > 0; i--) { const j = rnd(i + 1); [a[i], a[j]] = [a[j], a[i]]; } return a; };
@@ -63,77 +86,66 @@
     return items.length ? items[items.length - 1][0] : null;
   };
 
-  // ---------- Exercise selection ----------
-  // usedAt: Map id -> index of the segment where it was last used.
-  // Non-staple exercises never repeat; staples may come back, but not within 2 segments.
-  function pickFor(cat, ctx) {
-    const { level, usedAt, seg, segAnims, recent } = ctx;
-    const count = ctx.usedCount || new Map();
-    const cap = ctx.maxUses || 3;
-    const maxUses = (e) => (e.cat === 'ballistic' ? cap + 1 : cap);
-    const ok = (e) => e.level <= level && !segAnims.has(e.anim);
-    const weight = (e) => (e.level === level ? 3 : e.level === level - 1 ? 2 : 1) * (recent.has(e.id) ? 0.12 : 1);
-    const fresh = (c) => EXERCISES.filter((e) => e.cat === c && ok(e) && !usedAt.has(e.id));
-    const again = (c, gap) => EXERCISES.filter((e) => e.cat === c && ok(e) && e.staple && usedAt.has(e.id) &&
-      seg - usedAt.get(e.id) >= gap && (count.get(e.id) || 0) < maxUses(e));
-    // Swings are meant to come back (they anchor each circuit); other categories prefer a fresh
-    // exercise from a related category before repeating a staple.
-    const tries = cat === 'ballistic'
-      ? [() => fresh(cat), () => again(cat, 1), ...FALLBACK[cat].map((c) => () => fresh(c))]
-      : [() => fresh(cat), ...FALLBACK[cat].map((c) => () => fresh(c)), () => again(cat, 2), ...FALLBACK[cat].map((c) => () => again(c, 2))];
-    tries.push(() => again(cat, 1));
-    for (const f of tries) {
-      const list = f();
-      if (list.length) return weightedPick(list.map((e) => [e, weight(e) * (usedAt.has(e.id) ? 0.5 : 1)]));
-    }
-    // Very long sessions: reuse the least-used exercise of the category (staples first)
-    const last = EXERCISES.filter((e) => e.cat === cat && e.level <= level && !segAnims.has(e.anim) && seg - (usedAt.has(e.id) ? usedAt.get(e.id) : -9) >= 1);
-    return last.length ? weightedPick(last.map((e) => [e, (e.staple ? 3 : 1) / (1 + (count.get(e.id) || 0)) ** 2])) : null;
+  function allowed(e, level, backSafe) {
+    return e.level <= level && !['warmup', 'stretch', 'recovery'].includes(e.cat) && !(backSafe && back(e) >= 2);
   }
 
-  // ---------- Flow ordering inside a segment ----------
-  const IGNORE_MUSCLE = new Set(['cardio', 'core', 'balance', 'mobility']);
-  function pairCost(a, b) {
-    let c = 3 * posCost(endPos(a), startPos(b));
-    for (const m of a.muscles) if (!IGNORE_MUSCLE.has(m) && b.muscles.includes(m)) c += 2;
-    if (a.cat === b.cat) c += 4;
-    return c;
-  }
-  function seqCost(seq) {
-    const n = seq.length;
-    let c = 0;
-    for (let i = 0; i < n; i++) {
-      const e = seq[i];
-      if (i > 0) c += pairCost(seq[i - 1], e);
-      if (i > 1) for (const m of seq[i - 2].muscles) if (!IGNORE_MUSCLE.has(m) && e.muscles.includes(m) && seq[i - 1].muscles.includes(m)) c += 4;
-      const demanding = e.cat === 'ballistic' || e.level === 3 || (e.cat === 'total' && e.anim !== 'carry');
-      if (demanding) c += i * 1.6; // explosive / technical first
-      if (e.cat === 'core') c += (n - 1 - i) * 0.8; // core at the end
-      if (!STANDING.has(startPos(e))) c += (n - 1 - i) * 0.8; // floor work at the end
+  // Cost of putting `c` after the exercises already in `seq` (lower = more natural)
+  function transitionCost(c, seq, f, slot) {
+    const p1 = seq[seq.length - 1], p2 = seq[seq.length - 2];
+    let cost = 0;
+    if (p1) {
+      const b1 = back(p1), bc = back(c);
+      if (bc >= 1 && b1 >= 1) cost += (bc + b1 >= 3 ? 14 : 8); // two back-loading moves in a row
+      if (p2 && bc >= 1 && b1 >= 1 && back(p2) >= 1) cost += 15;
+      cost += 2 * posCost(endPos(p1), startPos(c));
+      for (const m of c.muscles) if (!IGNORE_MUSCLE.has(m) && p1.muscles.includes(m)) cost += 2.5;
+      if (p1.cat === c.cat) cost += 6;
+      if (p1.anim === c.anim) cost += 10;
     }
-    return c;
+    if (p2) for (const m of c.muscles) if (!IGNORE_MUSCLE.has(m) && p2.muscles.includes(m)) cost += 1;
+    // gradual intensity: controlled basics first, demanding moves in the middle, calm floor core at the end
+    const hard = c.cat === 'ballistic' || c.level >= 3 || (c.cat === 'total' && c.anim !== 'carry');
+    if (f < 0.25 && hard) cost += 6;
+    if (f < 0.2 && c.level >= 2) cost += 2;
+    if (f > 0.8 && hard) cost += 4;
+    if (slot === 'core' && f > 0.75 && onFloor(c)) cost -= 2;
+    if (slot === 'core' && f < 0.5 && onFloor(c)) cost += 2.5; // keep the floor for later
+    return cost;
   }
-  function bestOrder(list) {
-    if (list.length > 8) return list;
-    let best = list.slice(), bestCost = Infinity;
-    const used = new Array(list.length).fill(false);
-    const cur = [];
-    (function rec(partial) {
-      if (partial >= bestCost) return;
-      if (cur.length === list.length) {
-        const c = seqCost(cur) + Math.random() * 1.5;
-        if (c < bestCost) { bestCost = c; best = cur.slice(); }
-        return;
-      }
-      for (let i = 0; i < list.length; i++) {
-        if (used[i]) continue;
-        const add = cur.length ? pairCost(cur[cur.length - 1], list[i]) : 0;
-        used[i] = true; cur.push(list[i]);
-        rec(partial + add);
-        cur.pop(); used[i] = false;
-      }
-    })(0);
-    return best;
+
+  // Pick the best-fitting exercise for a slot, given what came before
+  function pickNext(slot, ctx) {
+    const { level, backSafe, seq, used, recent, f, maxUses } = ctx;
+    const idx = seq.length;
+    const canRepeat = (e, gap) => e.staple && used.has(e.id) && idx - used.get(e.id).last >= gap && used.get(e.id).count < maxUses;
+    const inSlot = (s) => EXERCISES.filter((e) => SLOT_CATS[s].includes(e.cat) && allowed(e, level, backSafe));
+    const tries = [
+      () => inSlot(slot).filter((e) => !used.has(e.id)),
+      ...(FALLBACK[slot] || []).map((s) => () => inSlot(s).filter((e) => !used.has(e.id))),
+      () => inSlot(slot).filter((e) => canRepeat(e, 6)),
+      ...(FALLBACK[slot] || []).map((s) => () => inSlot(s).filter((e) => canRepeat(e, 6))),
+      () => inSlot(slot).filter((e) => !used.has(e.id) || idx - used.get(e.id).last >= 3),
+      () => inSlot(slot),
+    ];
+    const p1 = seq[seq.length - 1];
+    // back-friendly: after a move that loads the lower back, the next one must not – first look for such a
+    // move among fresh/staple options, then allow anything, and only at the very end allow plain repeats
+    const strict = backSafe && p1 && back(p1) >= 1;
+    const nFresh = tries.length - 2;
+    const order = [];
+    if (strict) for (let k = 0; k < nFresh; k++) order.push([tries[k], true]);
+    for (let k = 0; k < tries.length; k++) order.push([tries[k], false]);
+    for (const [t, easyOnly] of order) {
+      let list = t();
+      if (easyOnly) list = list.filter((e) => back(e) === 0);
+      if (!list.length) continue;
+      const scored = list.map((e) => [e, transitionCost(e, seq, f, slot)]);
+      const best = Math.min(...scored.map((x) => x[1]));
+      const near = scored.filter((x) => x[1] <= best + 3); // the most natural options, then vary among them
+      return weightedPick(near.map(([e]) => [e, (e.level === level ? 3 : e.level === level - 1 ? 2 : 1) * (recent.has(e.id) ? 0.15 : 1) * (used.has(e.id) ? 0.5 : 1)]));
+    }
+    return null;
   }
 
   // ---------- Time budgeting ----------
@@ -147,7 +159,6 @@
   const startPrep = (t) => Math.max(3, t.prep);
   const grabPrep = (t) => Math.max(5, t.prep);
   const exSec = (e, t) => t.work + (e.uni ? t.switch : 0);
-  const segSec = (seg, t) => seg.reduce((s, e) => s + exSec(e, t), 0) + (seg.length - 1) * t.prep;
 
   function budget(target, t) {
     let warmSec = t.warmOn ? (t.warmMin ? t.warmMin * 60 : autoWarm(target)) : 0;
@@ -163,77 +174,48 @@
     return { warmSec, coolSec, mainSec: target - warmSec - coolSec - overhead };
   }
 
-  function slotsFor(focus, k, segIdx) {
-    const def = SEGMENT[focus];
-    let base = def.base.slice();
-    if (k < base.length) {
-      // rotate which secondary slots are kept so consecutive segments differ
-      const keep = base.slice(0, 2);
-      const rest = base.slice(2);
-      const off = segIdx % rest.length;
-      base = keep.concat(rest.slice(off).concat(rest.slice(0, off))).slice(0, k);
-    } else {
-      const extra = shuffle(def.extra);
-      while (base.length < k) base.push(extra[(base.length - def.base.length) % extra.length]);
+  // Build the main exercise sequence to fill mainSec. `seed` = exercise ids to keep (in order) where they fit.
+  function buildMain(t, level, focus, backSafe, mainSec, recent, seed) {
+    const pattern = PATTERNS[focus] || PATTERNS.full;
+    const est = Math.max(3, Math.round(mainSec / (t.work + t.prep + t.rest / t.restEvery + 1)));
+    const pool = EXERCISES.filter((e) => allowed(e, level, backSafe)).length;
+    const maxUses = Math.max(2, Math.ceil((est / pool) * 2.5));
+    const seq = [], used = new Map();
+    const queue = (seed || []).filter((id) => EX[id] && allowed(EX[id], level, backSafe));
+    let time = 0, since = 0;
+    for (let i = 0; i < 200; i++) {
+      let slot = pattern[i % pattern.length];
+      const wave = Math.floor(i / pattern.length);
+      if (VARIANTS[slot] && wave > 0 && wave % 2 === 1 && Math.random() < 0.35) slot = VARIANTS[slot][rnd(VARIANTS[slot].length)];
+      const f = Math.min(1, time / Math.max(1, mainSec));
+      const e = queue.length ? EX[queue.shift()] : pickNext(slot, { level, backSafe, seq, used, recent, f, maxUses });
+      if (!e) break;
+      const need = exSec(e, t);
+      if (seq.length >= 2 && time + need > mainSec + t.work * 0.5) break;
+      seq.push(e);
+      const u = used.get(e.id) || { count: 0, last: -99 };
+      used.set(e.id, { count: u.count + 1, last: seq.length - 1 });
+      time += need;
+      since++;
+      const gap = t.prep + (since >= t.restEvery ? t.rest : 0);
+      if (since >= t.restEvery) since = 0;
+      if (time + gap + t.work * 0.6 > mainSec) break;
+      time += gap;
     }
-    return base;
-  }
-
-  // Build the main sequence of segments to fill mainSec. `seed` = exercise ids to keep if possible.
-  function buildMain(t, level, focus, mainSec, recent, seed) {
-    const usedAt = new Map();
-    const usedCount = new Map();
-    const segments = [];
-    // How many times a staple may appear depends on how long the session is vs. how many exercises fit the level
-    const poolSize = EXERCISES.filter((e) => e.level <= level && !['warmup', 'stretch'].includes(e.cat)).length;
-    const estSlots = mainSec / (t.work + t.prep + t.rest / t.restEvery + 1);
-    const maxUses = Math.max(3, Math.ceil((estSlots / poolSize) * 2.5));
-    const queue = (seed || []).filter((id) => EX[id]);
-    let remaining = mainSec;
-    for (let s = 0; s < 60; s++) {
-      const k = t.restEvery;
-      let seg = [];
-      const segAnims = new Set();
-      while (queue.length && seg.length < k) { const e = EX[queue.shift()]; seg.push(e); segAnims.add(e.anim); }
-      if (seg.length < k) {
-        const have = new Set(seg.map((e) => e.cat));
-        for (const cat of slotsFor(focus, k, s)) {
-          if (seg.length >= k) break;
-          if (have.has(cat) && seg.length < k && Math.random() < 0.5) continue;
-          const e = pickFor(cat, { level, usedAt, usedCount, maxUses, seg: s, segAnims, recent });
-          if (e && !seg.includes(e)) { seg.push(e); segAnims.add(e.anim); }
-        }
-        // top up if some slots were skipped
-        for (const cat of shuffle(SEGMENT[focus].extra)) {
-          if (seg.length >= k) break;
-          const e = pickFor(cat, { level, usedAt, usedCount, maxUses, seg: s, segAnims, recent });
-          if (e && !seg.includes(e)) { seg.push(e); segAnims.add(e.anim); }
-        }
-      }
-      const restAfter = t.rest + t.prep;
-      // shrink the last segment to fit the remaining time
-      while (seg.length > 1 && segSec(seg, t) > remaining + t.work * 0.4) seg.pop();
-      if (segSec(seg, t) > remaining + t.work * 0.6 && segments.length) break;
-      seg = bestOrder(seg);
-      seg.forEach((e) => { usedAt.set(e.id, s); usedCount.set(e.id, (usedCount.get(e.id) || 0) + 1); });
-      segments.push(seg.map((e) => e.id));
-      remaining -= segSec(seg, t);
-      if (remaining < t.work + restAfter) break;
-      remaining -= restAfter;
-    }
-    return segments;
+    return seq.map((e) => e.id);
   }
 
   function generate(opts) {
     const minutes = opts.minutes, level = opts.level, focus = opts.focus || 'full';
+    const backSafe = opts.backSafe !== false;
     const t = normTiming(opts.timing);
     const target = minutes * 60;
     const recent = new Set(opts.recent || []);
     const B = budget(target, t);
-    const segments = buildMain(t, level, focus, B.mainSec, recent);
+    const main = buildMain(t, level, focus, backSafe, B.mainSec, recent);
     const warm = t.warmOn ? pickOrdered('warmup', WARM_MUST, Math.max(2, Math.round(B.warmSec / 30)), recent) : [];
     const cool = t.coolOn ? pickOrdered('stretch', COOL_MUST, Math.max(2, Math.round(B.coolSec / 35)), recent) : [];
-    return { v: 3, minutes, level, focus, target, timing: t, warm, cool, warmSec: B.warmSec, coolSec: B.coolSec, segments, created: Date.now() };
+    return { v: 4, minutes, level, focus, backSafe, target, timing: t, warm, cool, warmSec: B.warmSec, coolSec: B.coolSec, main, created: Date.now() };
   }
 
   // Apply new timing to an existing plan, keeping as many of its exercises as possible.
@@ -242,7 +224,7 @@
     const B = budget(plan.target, t);
     plan.timing = t;
     plan.warmSec = B.warmSec; plan.coolSec = B.coolSec;
-    plan.segments = buildMain(t, plan.level, plan.focus, B.mainSec, new Set(), plan.segments.flat());
+    plan.main = buildMain(t, plan.level, plan.focus, plan.backSafe !== false, B.mainSec, new Set(), plan.main);
     const nw = t.warmOn ? Math.max(2, Math.round(B.warmSec / 30)) : 0;
     if (nw !== plan.warm.length) plan.warm = nw ? pickOrdered('warmup', WARM_MUST, nw, new Set(), plan.warm) : [];
     const nc = t.coolOn ? Math.max(2, Math.round(B.coolSec / 35)) : 0;
@@ -268,54 +250,59 @@
   function buildIntervals(plan) {
     const t = normTiming(plan.timing);
     const out = [];
-    // One-sided moves: right side, a short switch, then left side.
+    let inst = 0;
+    // One-sided moves: right side, a short switch, then left side. `inst` ties the parts of one exercise together.
     const pushEx = (phase, id, dur, label, extra) => {
       const e = EX[id];
+      inst++;
       if (e.uni) {
         const h = Math.ceil(dur / 2);
-        out.push(Object.assign({ phase, ex: id, dur: h, side: 'Right side', label }, extra));
-        if (t.switch > 0) out.push({ phase: 'switch', ex: id, dur: t.switch, label: 'Switch sides', adj: 'none' });
-        out.push(Object.assign({ phase, ex: id, dur: dur - h, side: 'Left side', label, sideSwitch: t.switch === 0 }, extra));
+        out.push(Object.assign({ phase, ex: id, dur: h, side: 'Right side', label, inst }, extra));
+        if (t.switch > 0) out.push({ phase: 'switch', ex: id, dur: t.switch, label: 'Switch sides', adj: 'none', inst });
+        out.push(Object.assign({ phase, ex: id, dur: dur - h, side: 'Left side', label, sideSwitch: t.switch === 0, inst }, extra));
       } else {
-        out.push(Object.assign({ phase, ex: id, dur, side: e.alt ? 'Alternate' : null, label }, extra));
+        out.push(Object.assign({ phase, ex: id, dur, side: e.alt ? 'Alternate' : null, label, inst }, extra));
       }
     };
-    const main = plan.segments.flat();
+    const main = plan.main;
     const firstEx = plan.warm[0] || main[0];
-    out.push({ phase: 'prep', ex: firstEx, dur: startPrep(t), label: 'Get ready', adj: 'none' });
+    out.push({ phase: 'prep', ex: firstEx, dur: startPrep(t), label: 'Get ready', adj: 'none', forInst: 1 });
 
     const wd = split(plan.warmSec, Math.max(1, plan.warm.length));
-    plan.warm.forEach((id, i) => pushEx('warmup', id, wd[i], `Warm-up · ${i + 1}/${plan.warm.length}`, { adj: 'warm' }));
-    if (plan.warm.length) out.push({ phase: 'prep', ex: main[0], dur: grabPrep(t), label: 'Grab your kettlebell', adj: 'none' });
+    plan.warm.forEach((id, i) => pushEx('warmup', id, wd[i], `Warm-up · ${i + 1}/${plan.warm.length}`, { adj: 'warm', slot: ['warm', i] }));
+    if (plan.warm.length) out.push({ phase: 'prep', ex: main[0], dur: grabPrep(t), label: 'Grab your kettlebell', adj: 'none', forInst: inst + 1 });
 
-    let n = 0;
-    plan.segments.forEach((seg, si) => {
-      seg.forEach((id, i) => {
-        n++;
-        pushEx('work', id, t.work, `Exercise ${n}/${main.length} · Circuit ${si + 1}/${plan.segments.length}`, { seg: si, adj: 'work' });
-        const lastInSeg = i === seg.length - 1;
-        if (lastInSeg && si === plan.segments.length - 1) return;
-        const nextId = lastInSeg ? plan.segments[si + 1][0] : seg[i + 1];
-        if (lastInSeg && t.rest > 0) out.push({ phase: 'rest', ex: nextId, dur: t.rest, label: `Rest · circuit ${si + 2} next`, adj: 'rest' });
-        if (t.prep > 0) out.push({ phase: 'prep', ex: nextId, dur: t.prep, label: 'Get ready', adj: 'none' });
-      });
+    let since = 0;
+    main.forEach((id, i) => {
+      pushEx('work', id, t.work, `Exercise ${i + 1} of ${main.length}`, { adj: 'work', slot: ['main', i] });
+      since++;
+      if (i === main.length - 1) return;
+      if (since >= t.restEvery) {
+        since = 0;
+        if (t.rest > 0) out.push({ phase: 'rest', ex: main[i + 1], dur: t.rest, label: 'Rest', adj: 'rest', forInst: inst + 1 });
+      }
+      if (t.prep > 0) out.push({ phase: 'prep', ex: main[i + 1], dur: t.prep, label: 'Get ready', adj: 'none', forInst: inst + 1 });
     });
 
     if (plan.cool.length) {
-      if (t.prep) out.push({ phase: 'prep', ex: plan.cool[0], dur: t.prep, label: 'Cool-down next', adj: 'none' });
+      if (t.prep) out.push({ phase: 'prep', ex: plan.cool[0], dur: t.prep, label: 'Cool-down next', adj: 'none', forInst: inst + 1 });
       const cd = split(plan.coolSec, plan.cool.length);
-      plan.cool.forEach((id, i) => pushEx('cooldown', id, cd[i], `Cool-down · ${i + 1}/${plan.cool.length}`, { adj: 'cool' }));
+      plan.cool.forEach((id, i) => pushEx('cooldown', id, cd[i], `Cool-down · ${i + 1}/${plan.cool.length}`, { adj: 'cool', slot: ['cool', i] }));
     }
 
     fitExactly(out, plan, t);
-
     const res = out.filter((x) => x.dur > 0);
+    linkNext(res);
+    return res;
+  }
+
+  function linkNext(res) {
     for (let i = 0; i < res.length; i++) {
+      res[i].next = null;
       for (let j = i + 1; j < res.length; j++) {
         if (!['rest', 'prep', 'switch'].includes(res[j].phase) && res[j].ex !== res[i].ex) { res[i].next = res[j].ex; break; }
       }
     }
-    return res;
   }
 
   // Make the timeline add up to the selected minutes, to the second.
@@ -346,20 +333,38 @@
     return buildIntervals(plan).reduce((s, x) => s + x.dur, 0);
   }
 
-  // Replace one exercise with another of the same category (fresh if possible), keeping the flow.
-  function swap(plan, segIdx, exIdx, recent) {
-    const seg = plan.segments[segIdx];
-    const cur = EX[seg[exIdx]];
-    const usedAt = new Map(), usedCount = new Map();
-    plan.segments.forEach((s, si) => s.forEach((id) => { usedAt.set(id, si); usedCount.set(id, (usedCount.get(id) || 0) + 1); }));
-    const segAnims = new Set(seg.map((id) => EX[id].anim));
-    segAnims.delete(cur.anim);
-    const e = pickFor(cur.cat, { level: plan.level, usedAt, usedCount, seg: segIdx, segAnims, recent: new Set(recent || []) });
-    if (!e || e.id === cur.id) return false;
-    seg[exIdx] = e.id;
-    plan.segments[segIdx] = bestOrder(seg.map((id) => EX[id])).map((x) => x.id);
+  // A different exercise that can take this one's place: same movement slot, same one-/two-sided structure
+  // (so timing stays identical), respecting level, back-friendly mode and what's already in the plan.
+  function alternative(plan, id, opts) {
+    const cur = EX[id];
+    const sameShape = opts && opts.sameShape;
+    const avoid = new Set((opts && opts.avoid) || []);
+    const inPlan = new Set([...(plan.main || []), ...(plan.warm || []), ...(plan.cool || [])]);
+    const ok = (e) => e.id !== id && !avoid.has(e.id) && (!sameShape || (!!e.uni === !!cur.uni));
+    let list;
+    if (['warmup', 'stretch', 'recovery'].includes(cur.cat)) {
+      list = EXERCISES.filter((e) => e.cat === cur.cat && ok(e));
+    } else {
+      const slot = (opts && opts.slot) || CAT_SLOT[cur.cat];
+      const level = plan.level || 3, backSafe = plan.backSafe !== false;
+      const cands = (s) => EXERCISES.filter((e) => SLOT_CATS[s].includes(e.cat) && allowed(e, level, backSafe) && ok(e));
+      list = cands(slot);
+      if (!list.length) for (const s of FALLBACK[slot] || []) list = list.concat(cands(s));
+    }
+    if (!list.length) return null;
+    const fresh = list.filter((e) => !inPlan.has(e.id));
+    const pick = fresh.length ? fresh : list;
+    return pick[rnd(pick.length)].id;
+  }
+
+  // Replace one main exercise in a plan (preview "swap" button)
+  function swap(plan, idx, recent) {
+    const id = plan.main[idx];
+    const alt = alternative(plan, id);
+    if (!alt) return false;
+    plan.main[idx] = alt;
     return true;
   }
 
-  global.Generator = { generate, retime, buildIntervals, totalDuration, swap, FOCUS_LABEL, FOCUS_SHORT, LEVEL_TIMING, DEFAULT_TIMING };
+  global.Generator = { CAT_SLOT, generate, retime, buildIntervals, totalDuration, swap, alternative, linkNext, BACK, FOCUS_LABEL, FOCUS_SHORT, LEVEL_TIMING, DEFAULT_TIMING };
 })(window);

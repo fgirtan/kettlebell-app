@@ -18,7 +18,7 @@
   // ---------- Storage ----------
   const KEY = 'kettlebell.v1';
   const DEFAULTS = {
-    settings: { minutes: 30, level: 1, focus: 'full', sound: true, voice: true, vibrate: true, theme: 'auto', voiceName: '', voiceRate: 1, voiceVol: 1, prepCue: 'ticks', silentMode: true, voiceEngine: 'clips', clipVoice: 'm', visual: 'photo' },
+    settings: { minutes: 30, level: 1, focus: 'full', sound: true, voice: true, vibrate: true, theme: 'auto', voiceName: '', voiceRate: 1, voiceVol: 1, prepCue: 'ticks', silentMode: true, voiceEngine: 'clips', clipVoice: 'm', visual: 'photo', backSafe: true },
     plan: null,
     history: [],
   };
@@ -32,7 +32,7 @@
   if (!S.timing || S.timing.switch === undefined) S.timing = {};
   S.timing = Object.assign({}, Generator.DEFAULT_TIMING, Generator.LEVEL_TIMING[S.level], S.timing);
   store.recent = store.recent || [];
-  if (store.plan && store.plan.v !== 3) store.plan = null; // plan from an older version
+  if (store.plan && store.plan.v !== 4) store.plan = null; // plan from an older version
   if (!S.maleDefault) { S.clipVoice = 'm'; S.maleDefault = true; } // male voice chosen as the default
   const save = () => { try { localStorage.setItem(KEY, JSON.stringify(store)); } catch (e) { /* storage unavailable */ } };
   save();
@@ -118,6 +118,8 @@
       <div class="card">
         <p class="label">Focus</p>
         <div class="seg wrap" id="focus">${Object.entries(Generator.FOCUS_SHORT).map(([k, l]) => `<button data-f="${k}" class="${k === S.focus ? 'on' : ''}">${l}</button>`).join('')}</div>
+        <div class="set-row" style="margin-top:6px;border-bottom:0"><div><div>Back-friendly</div><div class="small muted">No swings, cleans or bent-over holds; never two back-loading moves in a row. Strengthens the back with deadlifts, bridges and bird dogs instead.</div></div>
+          <label class="switch"><input type="checkbox" id="backSafe" ${S.backSafe !== false ? 'checked' : ''}><span></span></label></div>
       </div>
       <div class="card" id="timingCard">
         <button class="row timing-head" id="tToggle" aria-expanded="${timingOpen}">
@@ -156,6 +158,7 @@
       save(); render();
     }));
     $$('#focus button').forEach((b) => (b.onclick = () => { S.focus = b.dataset.f; save(); $$('#focus button').forEach((x) => x.classList.toggle('on', x === b)); }));
+    $('#backSafe').onchange = (e) => { S.backSafe = e.target.checked; save(); toast(S.backSafe ? 'Back-friendly on – generate a new workout' : 'Back-friendly off – generate a new workout'); };
 
     // timing panel
     const refreshSum = () => {
@@ -189,8 +192,8 @@
     };
 
     $('#gen').onclick = () => {
-      store.plan = Generator.generate({ minutes: S.minutes, level: S.level, focus: S.focus, timing: S.timing, recent: recentIds() });
-      store.recent.push(store.plan.segments.flat().concat(store.plan.warm, store.plan.cool));
+      store.plan = Generator.generate({ minutes: S.minutes, level: S.level, focus: S.focus, backSafe: S.backSafe !== false, timing: S.timing, recent: recentIds() });
+      store.recent.push(store.plan.main.concat(store.plan.warm, store.plan.cool));
       store.recent = store.recent.slice(-3);
       save(); render();
       setTimeout(() => $('#preview').scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
@@ -228,8 +231,8 @@
     const iv = Generator.buildIntervals(plan);
     const total = iv.reduce((s, x) => s + x.dur, 0);
     const workSec = iv.filter((x) => x.phase === 'work').reduce((s, x) => s + x.dur, 0);
-    const nEx = plan.segments.flat().length;
-    const nUnique = new Set(plan.segments.flat()).size;
+    const nEx = plan.main.length;
+    const nUnique = new Set(plan.main).size;
     const t = plan.timing;
     root.innerHTML = `
       <div style="height:18px"></div>
@@ -238,7 +241,7 @@
         <div><b>${fmtMin(workSec)}</b><span>work</span></div>
         <div><b>${nEx}</b><span>${nUnique < nEx ? nUnique + ' different' : 'all different'}</span></div>
       </div>
-      <div class="flow-note">One continuous session, no sets. Each circuit is a mini full-body flow: explosive lifts first, then each move starts where the last one ended (bell at the hips → chest → racked → overhead → floor), never hitting the same muscles back to back. Only basics like swings repeat. A real ${t.rest}s rest comes after every ${t.restEvery} exercises; tap <b>Rest 30s</b> in the player whenever you need one.</div>
+      <div class="flow-note">One continuous run of exercises in a natural order: legs → press → hips → back → core, then again with new moves. Each area rests before it's used again${plan.backSafe !== false ? ', and two moves that load the lower back never come one after the other' : ''}. It starts with controlled basics, builds up, and ends calmer on the floor. A ${t.rest}s rest comes after every ${t.restEvery} exercises; tap <b>Rest 30s</b> any time, and <b>Skip</b> swaps an exercise without shortening the workout.</div>
     `;
     const head = (title, sub) => { const h = document.createElement('div'); h.className = 'block-head'; h.innerHTML = `<h3>${title}</h3><span class="small muted">${sub}</span>`; root.appendChild(h); };
     const list = () => { const l = document.createElement('div'); l.className = 'ex-list'; root.appendChild(l); return l; };
@@ -248,13 +251,18 @@
       const l = list(); plan.warm.forEach((id) => l.appendChild(exItem(id)));
     }
 
-    let num = 0;
-    plan.segments.forEach((seg, si) => {
-      head(`Circuit ${si + 1}`, `${seg.length} exercises · ${t.work}s each${si < plan.segments.length - 1 && t.rest ? ` · then ${t.rest}s rest` : ''}`);
-      const l = list();
-      seg.forEach((id, i) => l.appendChild(exItem(id, ++num, {
-        onSwap: () => { Generator.swap(plan, si, i, recentIds()); save(); renderPreview(root, plan); toast('Exercise swapped'); },
-      })));
+    head('Workout', `${plan.main.length} exercises · ${t.work}s each`);
+    const ml = list();
+    let since = 0;
+    plan.main.forEach((id, i) => {
+      ml.appendChild(exItem(id, i + 1, {
+        onSwap: () => { Generator.swap(plan, i, recentIds()); save(); renderPreview(root, plan); toast('Exercise swapped'); },
+      }));
+      since++;
+      if (since >= t.restEvery && i < plan.main.length - 1) {
+        since = 0;
+        if (t.rest > 0) { const r = document.createElement('div'); r.className = 'rest-row'; r.textContent = `Rest · ${t.rest}s`; ml.appendChild(r); }
+      }
     });
 
     if (plan.cool.length) {
@@ -688,7 +696,7 @@
     },
     skipAction(k) {
       const findFrom = (pred) => { for (let i = this.idx + 1; i < this.iv.length; i++) if (pred(this.iv[i])) return i; return -1; };
-      if (k === 'startNow') return this.jump(1);
+      if (k === 'startNow') return this.jump(1, true);
       if (k === 'add15') { this.remain += 15; this.iv[this.idx].dur += 15; this.total += 15; this.renderTime(); return; }
       if (k === 'skipWarm') { const i = findFrom((y) => y.phase !== 'warmup' && y.phase !== 'prep'); return this.goTo(i < 0 ? this.iv.length - 1 : Math.max(this.idx + 1, i - 1)); }
       if (k === 'toCool') { const i = findFrom((y) => y.phase === 'cooldown'); if (i > 0) return this.goTo(this.iv[i - 1].phase === 'prep' ? i - 1 : i); }
@@ -837,7 +845,36 @@
       const ov = this.own && this.own.querySelector('video'); if (ov) { if (this.running) ov.play().catch(() => {}); else ov.pause(); }
       if (this.running) { Fx.unlock(); this.wake(); } else Fx.say('Paused');
     },
-    jump(d) {
+    // Skip: replace the current (or upcoming) exercise with a similar one; the clock keeps running,
+    // so skipping never shortens the workout. During a rest the Skip button just ends the rest.
+    skipExercise() {
+      const x = this.iv[this.idx];
+      let target = null;
+      if (['work', 'warmup', 'cooldown', 'recover', 'switch'].includes(x.phase)) target = x.inst;
+      else if (x.phase === 'prep') target = x.forInst || (this.iv.slice(this.idx + 1).find((y) => y.inst) || {}).inst;
+      if (!target) return false;
+      const cur = this.iv.find((y) => y.inst === target);
+      if (!cur) return false;
+      const planLike = this.plan.kind === 'recovery' ? { level: 3, main: this.plan.items, warm: [], cool: [] } : this.plan;
+      // remember the original movement group and everything already skipped for this spot
+      if (!cur.origSlot) cur.origSlot = Generator.CAT_SLOT[EX[cur.ex].cat];
+      cur.skipped = (cur.skipped || []).concat(cur.ex);
+      let alt = Generator.alternative(planLike, cur.ex, { sameShape: true, slot: cur.origSlot, avoid: cur.skipped });
+      if (!alt) { cur.skipped = [cur.ex]; alt = Generator.alternative(planLike, cur.ex, { sameShape: true, slot: cur.origSlot, avoid: cur.skipped }); }
+      if (!alt) { toast('No alternative for this one'); return true; }
+      const oldId = cur.ex;
+      this.iv.forEach((y) => { if (y.inst === target || (y.forInst === target && y.ex === oldId)) { y.ex = alt; if (y.inst === target) { y.origSlot = cur.origSlot; y.skipped = cur.skipped; } } });
+      if (cur.slot && this.plan[cur.slot[0]]) this.plan[cur.slot[0]][cur.slot[1]] = alt;
+      if (this.plan.kind === 'recovery') { const k = this.plan.items.indexOf(oldId); if (k >= 0) this.plan.items[k] = alt; }
+      Generator.linkNext(this.iv);
+      const keep = this.remain;
+      this.enter(this.idx);
+      this.remain = keep; this.renderTime();
+      toast('Swapped to ' + EX[alt].name);
+      return true;
+    },
+    jump(d, noSwap) {
+      if (d > 0 && !noSwap && this.skipExercise()) return;
       let i = this.idx + d;
       if (d < 0 && this.iv[this.idx].dur - this.remain > 3) i = this.idx; // restart current
       if (i >= this.iv.length) return this.finish();
@@ -853,7 +890,7 @@
         store.history.push({ type: 'recovery', date: Date.now(), sec, minutes: this.plan.minutes, focus: this.plan.focus, ex: this.plan.items.slice(), done });
         return save();
       }
-      store.history.push({ date: Date.now(), sec, minutes: this.plan.minutes, focus: this.plan.focus, level: this.plan.level, ex: [...new Set(this.plan.segments.flat())], done });
+      store.history.push({ date: Date.now(), sec, minutes: this.plan.minutes, focus: this.plan.focus, level: this.plan.level, ex: [...new Set(this.plan.main)], done });
       save();
     },
     exit() {
@@ -878,7 +915,7 @@
       Fx.beep(660, 0.15); Fx.beep(880, 0.15, 0.25, 0.18); Fx.beep(1100, 0.4, 0.25, 0.36); Fx.buzz([100, 80, 100, 80, 300]);
       Fx.say('Workout complete. Great job!');
       this.el.innerHTML = `<div class="p-done"><div class="big">💪</div><h2>Workout complete!</h2>
-        <p class="muted">${fmtMin(sec)} · ${this.plan.segments.flat().length} exercises · ${Generator.FOCUS_LABEL[this.plan.focus]}</p>
+        <p class="muted">${fmtMin(sec)} · ${this.plan.main.length} exercises · ${Generator.FOCUS_LABEL[this.plan.focus]}</p>
         <button class="btn primary big" id="pOk" style="min-width:220px">Done</button></div>`;
       $('#pOk').onclick = () => { this.close(); tab = 'history'; render(); };
     },

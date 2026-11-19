@@ -76,14 +76,14 @@
     const n = plan.items.length;
     plan.items.forEach((id, i) => {
       const e = EX[id];
-      out.push({ phase: 'prep', ex: id, dur: i === 0 ? Math.max(3, c.prep) : c.prep, label: i === 0 ? 'Get ready' : 'Next', adj: 'none' });
+      out.push({ phase: 'prep', ex: id, dur: i === 0 ? Math.max(3, c.prep) : c.prep, label: i === 0 ? 'Get ready' : 'Next', adj: 'none', forInst: i + 1 });
       const label = `${i + 1}/${n} · ${STAGE[id] >= 5 && STAGE[id] < 10 ? 'On the floor' : STAGE[id] === 10 ? 'Relax' : STAGE[id] === 1 ? 'Breathe' : 'Standing'}`;
       let h = id === 'r_relax' ? plan.relaxSec : id === 'r_breath' ? 60 : MOBILITY.has(id) ? Math.min(45, holdFor(c)) : holdFor(c);
       if (e.uni) {
-        out.push({ phase: 'recover', ex: id, dur: h, side: 'Right side', label, adj: 'hold' });
-        if (c.switch) out.push({ phase: 'switch', ex: id, dur: c.switch, label: 'Switch sides', adj: 'none' });
-        out.push({ phase: 'recover', ex: id, dur: h, side: 'Left side', label, adj: 'hold', sideSwitch: !c.switch });
-      } else out.push({ phase: 'recover', ex: id, dur: h, side: e.alt ? 'Alternate' : null, label, adj: id === 'r_relax' ? 'relax' : 'hold' });
+        out.push({ phase: 'recover', ex: id, dur: h, side: 'Right side', label, adj: 'hold', inst: i + 1 });
+        if (c.switch) out.push({ phase: 'switch', ex: id, dur: c.switch, label: 'Switch sides', adj: 'none', inst: i + 1 });
+        out.push({ phase: 'recover', ex: id, dur: h, side: 'Left side', label, adj: 'hold', sideSwitch: !c.switch, inst: i + 1 });
+      } else out.push({ phase: 'recover', ex: id, dur: h, side: e.alt ? 'Alternate' : null, label, adj: id === 'r_relax' ? 'relax' : 'hold', inst: i + 1 });
     });
     // fit the chosen minutes exactly by lengthening/shortening holds (20–120 s)
     let diff = plan.target - out.reduce((s, x) => s + x.dur, 0);

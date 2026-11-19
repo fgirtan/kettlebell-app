@@ -451,6 +451,33 @@
       { p: m(SQUAT, { s1: -40, t1: 110, a: 28, u1: 40, f1: 150 }), d: 2000 },
       { p: m(SQUAT, { s1: -42, t1: 114, a: 26, u1: 42, f1: 152 }), d: 2000 },
     ],
+    // ---------- Back-friendly additions ----------
+    rowSup: [
+      { p: { s1: -8, t1: 28, a: 45, u1: 0, f1: 0, u2: 38, f2: 28, kb: 'near', km: 'hang' }, d: 900 },
+      { p: { s1: -8, t1: 28, a: 45, u1: -58, f1: 4, u2: 38, f2: 28, kb: 'near', km: 'hang' }, d: 900 },
+    ],
+    standPullover: [
+      { p: { u1: 188, f1: 188, a: 0, kb: 'both', km: 'float' }, d: 1100 },
+      { p: { u1: 95, f1: 95, a: 0, kb: 'both', km: 'float' }, d: 1100 },
+    ],
+    haloKneel: [
+      { p: { root: 'hip', hx: 100, hy: G - 40, t1: 0, s1: -90, a: 0, u1: 30, f1: 160, kb: 'both', km: 'hang' }, d: 500 },
+      { p: { root: 'hip', hx: 100, hy: G - 40, t1: 0, s1: -90, a: 0, u1: 150, f1: 225, kb: 'both', km: 'hang' }, d: 500 },
+      { p: { root: 'hip', hx: 100, hy: G - 40, t1: 0, s1: -90, a: 0, u1: 172, f1: 255, kb: 'both', km: 'hang' }, d: 500 },
+      { p: { root: 'hip', hx: 100, hy: G - 40, t1: 0, s1: -90, a: 0, u1: 140, f1: 140, kb: 'both', km: 'hang' }, d: 500 },
+    ],
+    boxSquat: [
+      { p: m({ a: 0 }, gob(0)), d: 1100 },
+      { p: m({ s1: -22, t1: 86, a: 22 }, gob(22)), d: 700 },
+      { p: m({ s1: -22, t1: 86, a: 22 }, gob(22)), d: 800 },
+    ],
+    deadbugPull: [
+      { p: m(SUPF, { t1: 180, s1: 90, u1: 180, f1: 180, kb: 'both', km: 'float' }), d: 1100 },
+      { p: m(SUPF, { t1: 98, s1: 96, t2: 180, s2: 90, u1: -100, f1: -100, kb: 'both', km: 'float' }), d: 1100 },
+      { p: m(SUPF, { t1: 180, s1: 90, u1: 180, f1: 180, kb: 'both', km: 'float' }), d: 1100 },
+      { p: m(SUPF, { t2: 98, s2: 96, t1: 180, s1: 90, u1: -100, f1: -100, kb: 'both', km: 'float' }), d: 1100 },
+    ],
+
     // ---------- Recovery (quiet, body weight) ----------
     breathArms: [
       { p: { u1: 4, f1: 4 }, d: 3200 },

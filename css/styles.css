@@ -272,3 +272,5 @@ input[type=range] { width: 100%; accent-color: var(--accent); }
 .media-actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0 2px; }
 .media-actions .btn { padding: 10px 12px; font-size: 14px; flex: 1 1 auto; }
 .p-stage .ph.own { max-height: 100%; aspect-ratio: auto; height: 100%; }
+
+.rest-row { text-align: center; font-size: 13px; font-weight: 700; color: var(--rest); padding: 6px; border: 1px dashed var(--line); border-radius: 12px; }
