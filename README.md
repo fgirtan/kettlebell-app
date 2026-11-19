@@ -14,6 +14,7 @@ A Progressive Web App for kettlebell training. Install it on your phone's home s
     - High-load moves (swings, cleans, snatches, good mornings, bent-over two-hand rows, windmills…) are left out.
     - Two back-loading moves are never placed one after the other.
     - The back is strengthened with deadlifts, glute bridges, bird dogs, dead bugs and supported rows.
+  - **Minimal floor work (on by default):** almost everything is done standing. At most 1–3 floor moves (about one per 15 min) are placed at the very end, so you get down once and stay down. The warm-up and cool-down use standing moves only.
   - **Gradual intensity:** controlled basics first, the more demanding moves in the middle, calmer floor/core work at the end.
   - **Repeats only where it makes sense:** fundamentals can come back (spaced out); recent exercises are avoided so workouts differ.
 - **Skip swaps, it doesn't cut time.** Skip during an exercise (or its get-ready) replaces it with a similar move from the same movement group, with the same one-/two-sided structure, and the clock keeps running. Skip during a rest ends the rest.

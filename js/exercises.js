@@ -261,6 +261,12 @@
       cues: ['On all fours, hands under shoulders, knees under hips.', 'Reach one arm and the opposite leg long, hold 2 seconds.', 'Keep the back flat like a table – strengthens the lower back without load.'],
       avoid: 'Twisting the hips or arching the back.' },
 
+    { id: 'pressOut', staple: true, name: 'Standing Press-Out', cat: 'core', region: 'core', muscles: ['abs', 'shoulders', 'core'], level: 1, anim: 'pressOut',
+      cues: ['Hold the bell by the horns at your chest, feet hip-width.', 'Press it straight out in front, hold 2 seconds, bring it back.', 'Ribs down, glutes tight – don’t lean back.'],
+      avoid: 'Arching the lower back as the arms go out.' },
+    { id: 'standCrunch', staple: true, name: 'Standing Cross Crunch', cat: 'core', region: 'core', muscles: ['obliques', 'abs', 'hip flexors'], level: 1, anim: 'standCrunch', alt: true, bw: true,
+      cues: ['Hands behind the head, stand tall.', 'Bring one knee up and the opposite elbow down to meet it.', 'Alternate sides at a steady pace – quiet, no jumping.'],
+      avoid: 'Rounding forward instead of lifting the knee.' },
     // ---------------- WARM-UP ----------------
     { id: 'w_march', name: 'High-Knee March', cat: 'warmup', region: 'total', muscles: ['cardio'], level: 1, anim: 'march', bw: true, order: 1,
       cues: ['Lift the knees to hip height.', 'Swing the arms.', 'Gradually pick up the pace.'] },

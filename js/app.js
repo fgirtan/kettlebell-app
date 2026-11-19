@@ -18,7 +18,7 @@
   // ---------- Storage ----------
   const KEY = 'kettlebell.v1';
   const DEFAULTS = {
-    settings: { minutes: 30, level: 1, focus: 'full', sound: true, voice: true, vibrate: true, theme: 'auto', voiceName: '', voiceRate: 1, voiceVol: 1, prepCue: 'ticks', silentMode: true, voiceEngine: 'clips', clipVoice: 'm', visual: 'photo', backSafe: true },
+    settings: { minutes: 30, level: 1, focus: 'full', sound: true, voice: true, vibrate: true, theme: 'auto', voiceName: '', voiceRate: 1, voiceVol: 1, prepCue: 'ticks', silentMode: true, voiceEngine: 'clips', clipVoice: 'm', visual: 'photo', backSafe: true, lowFloor: true },
     plan: null,
     history: [],
   };
@@ -120,6 +120,8 @@
         <div class="seg wrap" id="focus">${Object.entries(Generator.FOCUS_SHORT).map(([k, l]) => `<button data-f="${k}" class="${k === S.focus ? 'on' : ''}">${l}</button>`).join('')}</div>
         <div class="set-row" style="margin-top:6px;border-bottom:0"><div><div>Back-friendly</div><div class="small muted">No swings, cleans or bent-over holds; never two back-loading moves in a row. Strengthens the back with deadlifts, bridges and bird dogs instead.</div></div>
           <label class="switch"><input type="checkbox" id="backSafe" ${S.backSafe !== false ? 'checked' : ''}><span></span></label></div>
+        <div class="set-row" style="border-bottom:0;padding-top:4px"><div><div>Minimal floor work</div><div class="small muted">Almost everything standing; at most 1–2 floor moves at the very end, so you only get down once.</div></div>
+          <label class="switch"><input type="checkbox" id="lowFloor" ${S.lowFloor !== false ? 'checked' : ''}><span></span></label></div>
       </div>
       <div class="card" id="timingCard">
         <button class="row timing-head" id="tToggle" aria-expanded="${timingOpen}">
@@ -158,6 +160,7 @@
       save(); render();
     }));
     $$('#focus button').forEach((b) => (b.onclick = () => { S.focus = b.dataset.f; save(); $$('#focus button').forEach((x) => x.classList.toggle('on', x === b)); }));
+    $('#lowFloor').onchange = (e) => { S.lowFloor = e.target.checked; save(); toast('Saved – generate a new workout'); };
     $('#backSafe').onchange = (e) => { S.backSafe = e.target.checked; save(); toast(S.backSafe ? 'Back-friendly on – generate a new workout' : 'Back-friendly off – generate a new workout'); };
 
     // timing panel
@@ -192,7 +195,7 @@
     };
 
     $('#gen').onclick = () => {
-      store.plan = Generator.generate({ minutes: S.minutes, level: S.level, focus: S.focus, backSafe: S.backSafe !== false, timing: S.timing, recent: recentIds() });
+      store.plan = Generator.generate({ minutes: S.minutes, level: S.level, focus: S.focus, backSafe: S.backSafe !== false, lowFloor: S.lowFloor !== false, timing: S.timing, recent: recentIds() });
       store.recent.push(store.plan.main.concat(store.plan.warm, store.plan.cool));
       store.recent = store.recent.slice(-3);
       save(); render();

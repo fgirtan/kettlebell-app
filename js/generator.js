@@ -40,7 +40,7 @@
     rdl: 2, goodMorning: 2, row2: 2, highPull: 2, fig8: 2, windmill: 2, woodchop: 2, situp: 1, russianTwist: 1, vsit: 1, legRaise: 1,
     deadlift: 1, sumoDL: 1, suitcaseDL: 1, kickstand: 1, sldl: 1, row: 1, plankRow: 1, pushPress: 1, thruster: 1, thruster2: 1,
     goblet: 1, gobletPause: 1, squatPulse: 1, rackSquat: 1, sumoSquat: 1, cossack: 1, revLunge: 1, fwdLunge: 1, splitSquat: 1,
-    rackLunge: 1, suitLunge: 1, ohLunge: 2, lungeKnee: 1, latLunge: 1, curtsy: 1, press: 1, press2: 1, bottomsUp: 1, triExt: 1,
+    rackLunge: 1, suitLunge: 1, ohLunge: 2, lungeKnee: 1, latLunge: 1, curtsy: 1, press: 0, press2: 0, bottomsUp: 0, triExt: 1,
     carry: 1, rackMarch: 1, ohMarch: 1, tgu: 1, uprightRow: 0, boxSquat: 0, supRow: 0, standPull: 0,
   };
   const back = (e) => BACK[e.id] || 0;
@@ -57,7 +57,7 @@
     situp: 'supine', crunch: 'supine', halo: 'goblet', aroundWorld: 'hang', fig8: 'hang', deadbug: 'supine', hollow: 'supine', vsit: 'seated',
     legRaise: 'supine', plankDrag: 'prone', plank: 'prone', woodchop: 'hang', windmill: 'oh', thruster: 'rack', thruster2: 'goblet',
     carry: 'hang', rackMarch: 'rack', ohMarch: 'oh', tgu: 'supine',
-    rowSup: 'hang', standPullover: 'goblet', haloKneel: 'kneel', boxSquat: 'goblet', deadbugPull: 'supine', birdDog: 'prone',
+    pressOut: 'goblet', standCrunch: 'hang', rowSup: 'hang', standPullover: 'goblet', haloKneel: 'kneel', boxSquat: 'goblet', deadbugPull: 'supine', birdDog: 'prone',
   };
   const STANDING = new Set(['hang', 'goblet', 'rack', 'oh']);
   const NEAR = new Set(['hang|goblet', 'goblet|rack', 'rack|oh', 'goblet|kneel', 'rack|kneel', 'supine|seated', 'supine|prone', 'prone|seated', 'kneel|prone']);
@@ -74,6 +74,10 @@
     return 4; // standing <-> floor
   }
 
+  // Warm-up / cool-down moves done on the floor (left out in minimal-floor mode)
+  const FLOOR_WC = new Set(['w_inch', 'w_birddog', 'w_bridge', 's_cobra', 's_child', 's_seated', 's_knees', 's_dog', 's_hipflex']);
+  // Standing recovery moves that can extend the cool-down when floor work is kept to a minimum
+  const STANDING_COOL_EXTRA = ['r_calf', 'r_neck', 'r_shoulder', 'r_breath'];
   const WARM_MUST = ['w_march', 'w_wgs'];
   const COOL_MUST = ['s_fold', 's_child'];
   const IGNORE_MUSCLE = new Set(['cardio', 'core', 'balance', 'mobility']);
@@ -116,10 +120,10 @@
 
   // Pick the best-fitting exercise for a slot, given what came before
   function pickNext(slot, ctx) {
-    const { level, backSafe, seq, used, recent, f, maxUses } = ctx;
+    const { level, backSafe, seq, used, recent, f, maxUses, floorOk, floorOnly } = ctx;
     const idx = seq.length;
     const canRepeat = (e, gap) => e.staple && used.has(e.id) && idx - used.get(e.id).last >= gap && used.get(e.id).count < maxUses;
-    const inSlot = (s) => EXERCISES.filter((e) => SLOT_CATS[s].includes(e.cat) && allowed(e, level, backSafe));
+    const inSlot = (s) => EXERCISES.filter((e) => SLOT_CATS[s].includes(e.cat) && allowed(e, level, backSafe) && (floorOk || !onFloor(e)) && (!floorOnly || onFloor(e)));
     const tries = [
       () => inSlot(slot).filter((e) => !used.has(e.id)),
       ...(FALLBACK[slot] || []).map((s) => () => inSlot(s).filter((e) => !used.has(e.id))),
@@ -175,7 +179,10 @@
   }
 
   // Build the main exercise sequence to fill mainSec. `seed` = exercise ids to keep (in order) where they fit.
-  function buildMain(t, level, focus, backSafe, mainSec, recent, seed) {
+  // lowFloor: keep floor exercises to a minimum – at most ~1 per 15 min, only at the very end (you get down once)
+  function buildMain(t, level, focus, backSafe, mainSec, recent, seed, lowFloor) {
+    const floorCap = lowFloor ? Math.max(1, Math.round(mainSec / 900)) : 99;
+    let floorCount = 0;
     const pattern = PATTERNS[focus] || PATTERNS.full;
     const est = Math.max(3, Math.round(mainSec / (t.work + t.prep + t.rest / t.restEvery + 1)));
     const pool = EXERCISES.filter((e) => allowed(e, level, backSafe)).length;
@@ -188,11 +195,17 @@
       const wave = Math.floor(i / pattern.length);
       if (VARIANTS[slot] && wave > 0 && wave % 2 === 1 && Math.random() < 0.35) slot = VARIANTS[slot][rnd(VARIANTS[slot].length)];
       const f = Math.min(1, time / Math.max(1, mainSec));
-      const e = queue.length ? EX[queue.shift()] : pickNext(slot, { level, backSafe, seq, used, recent, f, maxUses });
+      // floor moves only in the last few slots, so once you're down you stay down until the end
+      const left = mainSec - time;
+      const floorOnly = lowFloor && floorCount > 0; // already down: stay down
+      const floorOk = !lowFloor || floorOnly || (left <= floorCap * (t.work + t.prep + t.switch) + t.rest + 5);
+      while (queue.length && !floorOk && onFloor(EX[queue[0]])) queue.shift();
+      const e = queue.length ? EX[queue.shift()] : (pickNext(slot, { level, backSafe, seq, used, recent, f, maxUses, floorOk, floorOnly }) || (floorOnly ? pickNext('core', { level, backSafe, seq, used, recent, f, maxUses, floorOk, floorOnly }) : null));
       if (!e) break;
       const need = exSec(e, t);
       if (seq.length >= 2 && time + need > mainSec + t.work * 0.5) break;
       seq.push(e);
+      if (onFloor(e)) floorCount++;
       const u = used.get(e.id) || { count: 0, last: -99 };
       used.set(e.id, { count: u.count + 1, last: seq.length - 1 });
       time += need;
@@ -208,14 +221,15 @@
   function generate(opts) {
     const minutes = opts.minutes, level = opts.level, focus = opts.focus || 'full';
     const backSafe = opts.backSafe !== false;
+    const lowFloor = opts.lowFloor !== false;
     const t = normTiming(opts.timing);
     const target = minutes * 60;
     const recent = new Set(opts.recent || []);
     const B = budget(target, t);
-    const main = buildMain(t, level, focus, backSafe, B.mainSec, recent);
-    const warm = t.warmOn ? pickOrdered('warmup', WARM_MUST, Math.max(2, Math.round(B.warmSec / 30)), recent) : [];
-    const cool = t.coolOn ? pickOrdered('stretch', COOL_MUST, Math.max(2, Math.round(B.coolSec / 35)), recent) : [];
-    return { v: 4, minutes, level, focus, backSafe, target, timing: t, warm, cool, warmSec: B.warmSec, coolSec: B.coolSec, main, created: Date.now() };
+    const main = buildMain(t, level, focus, backSafe, B.mainSec, recent, null, lowFloor);
+    const warm = t.warmOn ? pickOrdered('warmup', WARM_MUST, Math.max(2, Math.round(B.warmSec / 30)), recent, null, lowFloor) : [];
+    const cool = t.coolOn ? pickOrdered('stretch', COOL_MUST, Math.max(2, Math.round(B.coolSec / 35)), recent, null, lowFloor) : [];
+    return { v: 4, minutes, level, focus, backSafe, lowFloor, target, timing: t, warm, cool, warmSec: B.warmSec, coolSec: B.coolSec, main, created: Date.now() };
   }
 
   // Apply new timing to an existing plan, keeping as many of its exercises as possible.
@@ -224,21 +238,27 @@
     const B = budget(plan.target, t);
     plan.timing = t;
     plan.warmSec = B.warmSec; plan.coolSec = B.coolSec;
-    plan.main = buildMain(t, plan.level, plan.focus, plan.backSafe !== false, B.mainSec, new Set(), plan.main);
+    plan.main = buildMain(t, plan.level, plan.focus, plan.backSafe !== false, B.mainSec, new Set(), plan.main, plan.lowFloor !== false);
     const nw = t.warmOn ? Math.max(2, Math.round(B.warmSec / 30)) : 0;
-    if (nw !== plan.warm.length) plan.warm = nw ? pickOrdered('warmup', WARM_MUST, nw, new Set(), plan.warm) : [];
+    if (nw !== plan.warm.length) plan.warm = nw ? pickOrdered('warmup', WARM_MUST, nw, new Set(), plan.warm, plan.lowFloor !== false) : [];
     const nc = t.coolOn ? Math.max(2, Math.round(B.coolSec / 35)) : 0;
-    if (nc !== plan.cool.length) plan.cool = nc ? pickOrdered('stretch', COOL_MUST, nc, new Set(), plan.cool) : [];
+    if (nc !== plan.cool.length) plan.cool = nc ? pickOrdered('stretch', COOL_MUST, nc, new Set(), plan.cool, plan.lowFloor !== false) : [];
     return plan;
   }
 
-  function pickOrdered(cat, must, n, recent, keep) {
-    const all = EXERCISES.filter((e) => e.cat === cat);
+  function pickOrdered(cat, must, n, recent, keep, lowFloor) {
+    let all = EXERCISES.filter((e) => e.cat === cat);
+    if (lowFloor) {
+      all = all.filter((e) => !FLOOR_WC.has(e.id));
+      if (cat === 'stretch') all = all.concat(STANDING_COOL_EXTRA.map((id) => EX[id]).filter(Boolean));
+      must = must.filter((id) => !FLOOR_WC.has(id));
+      keep = (keep || []).filter((id) => !FLOOR_WC.has(id));
+    }
     const ids = new Set();
     for (const id of (keep || []).concat(must)) { if (ids.size >= n) break; ids.add(id); }
     const fresh = shuffle(all).sort((a, b) => (recent && recent.has(a.id) ? 1 : 0) - (recent && recent.has(b.id) ? 1 : 0));
     for (const e of fresh) { if (ids.size >= n) break; ids.add(e.id); }
-    return [...ids].map((id) => EX[id]).sort((a, b) => a.order - b.order).map((e) => e.id);
+    return [...ids].map((id) => EX[id]).sort((a, b) => (a.order || 5) - (b.order || 5)).map((e) => e.id);
   }
 
   function split(total, n) {
@@ -340,7 +360,10 @@
     const sameShape = opts && opts.sameShape;
     const avoid = new Set((opts && opts.avoid) || []);
     const inPlan = new Set([...(plan.main || []), ...(plan.warm || []), ...(plan.cool || [])]);
-    const ok = (e) => e.id !== id && !avoid.has(e.id) && (!sameShape || (!!e.uni === !!cur.uni));
+    const curFloor = FLOOR_WC.has(id) || (!['warmup', 'stretch', 'recovery'].includes(cur.cat) && onFloor(cur));
+    const floorFree = plan.lowFloor !== false && !plan.kind && !curFloor;
+    const isFloor = (e) => FLOOR_WC.has(e.id) || (!['warmup', 'stretch', 'recovery'].includes(e.cat) && onFloor(e));
+    const ok = (e) => e.id !== id && !avoid.has(e.id) && (!sameShape || (!!e.uni === !!cur.uni)) && !(floorFree && isFloor(e));
     let list;
     if (['warmup', 'stretch', 'recovery'].includes(cur.cat)) {
       list = EXERCISES.filter((e) => e.cat === cur.cat && ok(e));

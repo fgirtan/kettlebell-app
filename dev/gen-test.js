@@ -13,3 +13,14 @@ for(const lvl of [1,2]){const p=Generator.generate({minutes:30,level:lvl,focus:'
  console.log(`\nL${lvl} 30min back-safe (${p.main.length} ex):`);console.log(p.main.map((id,i)=>`${i+1}. ${EX[id].name} [back ${back(id)}]`).join('\n'));}
 const p=Generator.generate({minutes:30,level:2,focus:'full',backSafe:false,timing:Generator.LEVEL_TIMING[2]});
 console.log('\nL2 30min normal:',p.main.map(id=>EX[id].name+'('+back(id)+')').join(' > '));
+// minimal-floor check
+{ const FL=new Set(['w_inch','w_birddog','w_bridge','s_cobra','s_child','s_seated','s_knees','s_dog','s_hipflex']);
+  const POS={}; let worst=0, wcFloor=0, early=0;
+  const isFloor=id=>{const e=EX[id];return e.floor||['halfKneelPress','haloKneel','pushup','plankRow','plankDrag','plank','russianTwist','vsit','tgu','birdDog','floorPress','floorPress2','pullover','skull','situp','crunch','deadbug','hollow','legRaise','bridge','bridge1','deadbugPull'].includes(e.anim)};
+  for(const lvl of [1,2,3])for(const m of [10,20,30,45,60])for(let k=0;k<20;k++){const p=Generator.generate({minutes:m,level:lvl,focus:'full',timing:Generator.LEVEL_TIMING[lvl]});
+    const fl=p.main.map((id,i)=>[id,i]).filter(([id])=>isFloor(id)); worst=Math.max(worst,fl.length);
+    fl.forEach(([id,i])=>{ if(p.main.slice(i+1).some(x=>!isFloor(x))) early++; });
+    wcFloor+=p.warm.concat(p.cool).filter(id=>FL.has(id)).length; if(Generator.totalDuration(p)!==m*60) console.log('TIME!');}
+  console.log('minimal floor: max floor moves in a workout',worst,'| floor moves followed by standing ones',early,'| floor warm/cool moves',wcFloor);
+  const p=Generator.generate({minutes:30,level:1,focus:'full',timing:Generator.LEVEL_TIMING[1]});
+  console.log('L1 30min:',p.main.map(id=>EX[id].name).join(' > '));console.log('warm:',p.warm.map(id=>EX[id].name).join(', '),'| cool:',p.cool.map(id=>EX[id].name).join(', '));}
