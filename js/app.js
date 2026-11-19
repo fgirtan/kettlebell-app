@@ -16,6 +16,7 @@
   };
 
   // ---------- Storage ----------
+  const APP_VERSION = '2026.11.19 (v18)';
   const KEY = 'kettlebell.v1';
   const DEFAULTS = {
     settings: { minutes: 30, level: 1, focus: 'full', sound: true, voice: true, vibrate: true, theme: 'auto', voiceName: '', voiceRate: 1, voiceVol: 1, prepCue: 'ticks', silentMode: true, voiceEngine: 'clips', clipVoice: 'm', visual: 'photo', backSafe: true, lowFloor: true, hrAge: 40, hrWarn: true, hrWarnPct: 85 },
@@ -489,6 +490,10 @@
         <p class="small" style="margin:0"><b>iPhone (Safari):</b> Share button → “Add to Home Screen”.</p>
         <p class="small muted" style="margin:8px 0 0">After the first visit the app works fully offline.</p>
       </div>
+      <div class="card"><p class="label">App version</p>
+        <p class="small" style="margin:0"><b>${APP_VERSION}</b> <span class="muted">· includes My workouts, heart rate, recovery</span></p>
+        <button class="btn ghost block" id="forceUpdate" style="margin-top:10px">Check for updates</button>
+      </div>
       <div class="card"><p class="label">Data</p>
         <p class="small muted" style="margin:0 0 10px">${EXERCISES.filter((e) => !['warmup', 'stretch'].includes(e.cat)).length} main exercises, ${EXERCISES.filter((e) => e.cat === 'warmup').length} warm-up moves, ${EXERCISES.filter((e) => e.cat === 'stretch').length} stretches. History is stored only on this device.</p>
         <button class="btn ghost block" id="clearHist">Clear history</button>
@@ -542,6 +547,15 @@
     }
     $$('#visual button').forEach((b) => (b.onclick = () => { S.visual = b.dataset.v; save(); $$('#visual button').forEach((x) => x.classList.toggle('on', x === b)); }));
     $$('#theme button').forEach((b) => (b.onclick = () => { S.theme = b.dataset.t; save(); applyTheme(); $$('#theme button').forEach((x) => x.classList.toggle('on', x === b)); }));
+    $('#forceUpdate').onclick = async () => {
+      toast('Checking…');
+      try {
+        const reg = await navigator.serviceWorker.getRegistration();
+        if (reg) await reg.update();
+        const keys = await caches.keys(); await Promise.all(keys.map((k) => caches.delete(k)));
+      } catch (e) { /* ignore */ }
+      location.reload();
+    };
     $('#clearHist').onclick = () => { if (confirm('Delete your entire workout history?')) { store.history = []; save(); toast('History cleared'); } };
   }
 
@@ -1029,6 +1043,16 @@
   Media.init().then((n) => { if (n) render(); });
 
   if ('serviceWorker' in navigator && location.protocol !== 'file:') {
-    window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
+    window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').then((reg) => {
+      // look for a new version whenever the app comes back to the foreground
+      document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') reg.update().catch(() => {}); });
+    }).catch(() => {}));
+    // a new version took over: reload once (but never in the middle of a workout)
+    let reloading = false;
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (reloading) return;
+      if (!$('#player').hidden) { toast('Update ready – it will load next time you open the app'); return; }
+      reloading = true; location.reload();
+    });
   }
 })();
