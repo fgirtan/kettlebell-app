@@ -18,6 +18,12 @@ A Progressive Web App for kettlebell training. Install it on your phone's home s
   - **Gradual intensity:** controlled basics first, the more demanding moves in the middle, calmer floor/core work at the end.
   - **Repeats only where it makes sense:** fundamentals can come back (spaced out); recent exercises are avoided so workouts differ.
 - **Skip swaps, it doesn't cut time.** Skip during an exercise (or its get-ready) replaces it with a similar move from the same movement group, with the same one-/two-sided structure, and the clock keeps running. Skip during a rest ends the rest.
+- **My workouts (custom):** Kettlebell tab → *My workouts*.
+  - Build your own workout: pick exercises from the library, reorder them and set the time per exercise.
+  - Set the rounds, the rest between exercises and between rounds, and turn the warm-up and cool-down on or off.
+  - Saved workouts can be started, edited, copied or deleted.
+  - *Save as my workout* on any generated workout copies it into the editor.
+  - In your own workouts, Skip simply moves on.
 - **Configurable timing** (Workout tab → Timing):
   - Work time
   - Get-ready countdown between exercises

@@ -84,6 +84,7 @@
       : `<img class="a" src="photos/${key}_0.jpg" alt=""><img class="b" src="photos/${key}_1.jpg" alt="">`;
     return d;
   }
+  const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   function toast(msg) { const t = $('#toast'); t.textContent = msg; t.hidden = false; clearTimeout(toast._t); toast._t = setTimeout(() => (t.hidden = true), 2200); }
   const regionTag = (e) => `<span class="tag ${e.region}">${{ lower: 'Lower', upper: 'Upper', core: 'Core', total: 'Total' }[e.region]}</span>`;
   const sideNote = (e) => (e.uni ? ' · each side' : e.alt ? ' · alternating' : '');
@@ -125,6 +126,9 @@
   }
 
   function renderHome(v) {
+    v.insertAdjacentHTML('beforeend', `<div class="seg" id="kbMode" style="margin-bottom:14px">${[['gen', 'Generate'], ['custom', 'My workouts']].map(([k, l]) => `<button data-v="${k}" class="${(S.kbMode || 'gen') === k ? 'on' : ''}">${l}</button>`).join('')}</div>`);
+    $$('#kbMode button').forEach((b) => (b.onclick = () => { S.kbMode = b.dataset.v; save(); render(); }));
+    if (S.kbMode === 'custom') { Custom.render(v, api()); return; }
     v.insertAdjacentHTML('beforeend', `
       <div class="card">
         <p class="label">Total workout time</p>
@@ -271,10 +275,13 @@
         <div><b>${fmtMin(workSec)}</b><span>work</span></div>
         <div><b>${nEx}</b><span>${nUnique < nEx ? nUnique + ' different' : 'all different'}</span></div>
       </div>
+      <button class="btn ghost block" id="saveAsMine" style="margin-bottom:12px">☆ Save as my workout</button>
       <div class="flow-note">One continuous run of exercises in a natural order: legs → press → hips → back → core, then again with new moves. Each area rests before it's used again${plan.backSafe !== false ? ', and two moves that load the lower back never come one after the other' : ''}. It starts with controlled basics, builds up, and ends calmer on the floor. A ${t.rest}s rest comes after every ${t.restEvery} exercises; tap <b>Rest 30s</b> any time, and <b>Skip</b> swaps an exercise without shortening the workout.</div>
     `;
     const head = (title, sub) => { const h = document.createElement('div'); h.className = 'block-head'; h.innerHTML = `<h3>${title}</h3><span class="small muted">${sub}</span>`; root.appendChild(h); };
     const list = () => { const l = document.createElement('div'); l.className = 'ex-list'; root.appendChild(l); return l; };
+    const sam = root.querySelector('#saveAsMine');
+    if (sam) sam.onclick = () => { Custom.fromPlan(plan, api()); S.kbMode = 'custom'; save(); render(); window.scrollTo(0, 0); toast('Edit it and tap Save'); };
 
     if (plan.warm.length) {
       head('Warm-up', `${plan.warm.length} moves · ${fmtMin(iv.filter((x) => x.phase === 'warmup').reduce((s, x) => s + x.dur, 0))}`);
@@ -426,7 +433,7 @@
         return;
       }
       c.innerHTML = `<div class="date"><b>${dt.getDate()}</b><span>${MONTHS[dt.getMonth()]}</span></div>
-        <div style="flex:1;min-width:0"><div style="font-weight:700">${fmtMin(x.sec)} · Kettlebell · ${Generator.FOCUS_LABEL[x.focus] || ''}</div>
+        <div style="flex:1;min-width:0"><div style="font-weight:700">${fmtMin(x.sec)} · Kettlebell · ${x.name ? esc(x.name) : Generator.FOCUS_LABEL[x.focus] || ''}</div>
         <div class="small muted">${LEVEL_LABEL[x.level]} · ${x.ex.length} exercises${x.done ? '' : ' · stopped early'}${x.hr ? ` · ♥ avg ${x.hr.avg} / max ${x.hr.max}` : ''}</div>
         <div class="small muted" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${x.ex.map((id) => (EX[id] ? EX[id].name : id)).join(' · ')}</div></div>`;
       hl.appendChild(c);
@@ -905,6 +912,7 @@
     // Skip: replace the current (or upcoming) exercise with a similar one; the clock keeps running,
     // so skipping never shortens the workout. During a rest the Skip button just ends the rest.
     skipExercise() {
+      if (this.plan.kind === 'custom') return false; // your own workout: Skip simply moves on
       const x = this.iv[this.idx];
       let target = null;
       if (['work', 'warmup', 'cooldown', 'recover', 'switch'].includes(x.phase)) target = x.inst;
@@ -949,7 +957,7 @@
         store.history.push({ type: 'recovery', date: Date.now(), sec, minutes: this.plan.minutes, focus: this.plan.focus, ex: this.plan.items.slice(), done, hr });
         return save();
       }
-      store.history.push({ date: Date.now(), sec, minutes: this.plan.minutes, focus: this.plan.focus, level: this.plan.level, ex: [...new Set(this.plan.main)], done, hr });
+      store.history.push({ date: Date.now(), sec, minutes: this.plan.minutes, focus: this.plan.focus, level: this.plan.level, ex: [...new Set(this.plan.main)], done, hr, name: this.plan.kind === 'custom' ? this.plan.name : undefined });
       save();
     },
     exit() {
@@ -974,7 +982,7 @@
       Fx.beep(660, 0.15); Fx.beep(880, 0.15, 0.25, 0.18); Fx.beep(1100, 0.4, 0.25, 0.36); Fx.buzz([100, 80, 100, 80, 300]);
       Fx.say('Workout complete. Great job!');
       this.el.innerHTML = `<div class="p-done"><div class="big">💪</div><h2>Workout complete!</h2>
-        <p class="muted">${fmtMin(sec)} · ${this.plan.main.length} exercises · ${Generator.FOCUS_LABEL[this.plan.focus]}</p>
+        <p class="muted">${fmtMin(sec)} · ${this.plan.main.length} exercises · ${this.plan.kind === 'custom' ? esc(this.plan.name) : Generator.FOCUS_LABEL[this.plan.focus]}</p>
         <button class="btn primary big" id="pOk" style="min-width:220px">Done</button></div>`;
       $('#pOk').onclick = () => { this.close(); tab = 'history'; render(); };
     },
@@ -1000,7 +1008,7 @@
 
   // Helpers shared with the shadowboxing module (js/boxing.js)
   function api() {
-    return { S, store, save, Fx, ICON, fmt, fmtSec, fmtMin, toast, $, $$, rerender: render, HRUI, goTab: (t) => { tab = t; render(); }, exItem, startPlayer: (plan) => Player.start(plan) };
+    return { S, store, save, Fx, ICON, fmt, fmtSec, fmtMin, toast, $, $$, rerender: render, HRUI, openSheet, goTab: (t) => { tab = t; render(); }, exItem, startPlayer: (plan) => Player.start(plan) };
   }
 
   // Block zoom: iOS Safari ignores user-scalable=no, so stop pinch gestures and fast double-taps here too

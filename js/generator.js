@@ -293,11 +293,19 @@
     if (plan.warm.length) out.push({ phase: 'prep', ex: main[0], dur: grabPrep(t), label: 'Grab your kettlebell', adj: 'none', forInst: inst + 1 });
 
     let since = 0;
+    const custom = plan.kind === 'custom';
     main.forEach((id, i) => {
-      pushEx('work', id, t.work, `Exercise ${i + 1} of ${main.length}`, { adj: 'work', slot: ['main', i] });
+      const label = custom && plan.rounds > 1
+        ? `Round ${Math.floor(i / plan.roundLen) + 1}/${plan.rounds} · ${(i % plan.roundLen) + 1}/${plan.roundLen}`
+        : `Exercise ${i + 1} of ${main.length}`;
+      pushEx('work', id, plan.workSec ? plan.workSec[i] : t.work, label, { adj: 'work', slot: ['main', i] });
       since++;
       if (i === main.length - 1) return;
-      if (since >= t.restEvery) {
+      if (custom) { // your own workout: rest between exercises and/or a longer rest between rounds
+        const endRound = plan.rounds > 1 && (i + 1) % plan.roundLen === 0;
+        const r = endRound ? plan.roundRest : plan.restBetween;
+        if (r > 0) out.push({ phase: 'rest', ex: main[i + 1], dur: r, label: endRound ? `Rest · round ${(i + 1) / plan.roundLen + 1} next` : 'Rest', adj: 'none', forInst: inst + 1 });
+      } else if (since >= t.restEvery) {
         since = 0;
         if (t.rest > 0) out.push({ phase: 'rest', ex: main[i + 1], dur: t.rest, label: 'Rest', adj: 'rest', forInst: inst + 1 });
       }
@@ -310,7 +318,7 @@
       plan.cool.forEach((id, i) => pushEx('cooldown', id, cd[i], `Cool-down · ${i + 1}/${plan.cool.length}`, { adj: 'cool', slot: ['cool', i] }));
     }
 
-    fitExactly(out, plan, t);
+    if (!plan.noFit) fitExactly(out, plan, t);
     const res = out.filter((x) => x.dur > 0);
     linkNext(res);
     return res;
@@ -389,5 +397,24 @@
     return true;
   }
 
-  global.Generator = { CAT_SLOT, generate, retime, buildIntervals, totalDuration, swap, alternative, linkNext, BACK, FOCUS_LABEL, FOCUS_SHORT, LEVEL_TIMING, DEFAULT_TIMING };
+  // Turn a saved custom workout into a playable plan (no time fitting: it takes as long as you built it)
+  function customPlan(def, timing) {
+    const t = normTiming(Object.assign({}, timing, { warmOn: !!def.warmOn, coolOn: !!def.coolOn, warmMin: 0, coolMin: 0 }));
+    const rounds = Math.max(1, def.rounds || 1);
+    const main = [], workSec = [];
+    for (let r = 0; r < rounds; r++) def.items.forEach((it) => { main.push(it.ex); workSec.push(it.sec || t.work); });
+    const warmSec = t.warmOn ? 180 : 0, coolSec = t.coolOn ? 120 : 0;
+    const plan = {
+      v: 4, kind: 'custom', name: def.name || 'My workout', customId: def.id, focus: 'custom', level: 3, backSafe: false, lowFloor: false,
+      timing: t, main, workSec, rounds, roundLen: def.items.length, restBetween: def.restBetween || 0, roundRest: def.roundRest || 0,
+      warm: t.warmOn ? pickOrdered('warmup', WARM_MUST, 6, new Set(), null, true) : [],
+      cool: t.coolOn ? pickOrdered('stretch', COOL_MUST, 4, new Set(), null, true) : [],
+      warmSec, coolSec, noFit: true, created: Date.now(),
+    };
+    plan.target = buildIntervals(plan).reduce((s, x) => s + x.dur, 0);
+    plan.minutes = Math.round(plan.target / 60);
+    return plan;
+  }
+
+  global.Generator = { customPlan, CAT_SLOT, generate, retime, buildIntervals, totalDuration, swap, alternative, linkNext, BACK, FOCUS_LABEL, FOCUS_SHORT, LEVEL_TIMING, DEFAULT_TIMING };
 })(window);

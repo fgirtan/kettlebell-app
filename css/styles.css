@@ -281,3 +281,16 @@ input[type=range] { width: 100%; accent-color: var(--accent); }
 .hr-badge.z1 { color: #9aa1ad; } .hr-badge.z2 { color: #4aa3ff; } .hr-badge.z3 { color: #3ecf8e; } .hr-badge.z4 { color: #f5c542; } .hr-badge.z5 { color: #ff5a5a; }
 .hr-live { font-weight: 800; font-size: 20px; color: #ff5a5a; font-variant-numeric: tabular-nums; }
 @keyframes beat { 0%, 100% { transform: scale(1); } 15% { transform: scale(1.25); } 30% { transform: scale(1); } }
+
+/* my workouts */
+.cw-row { display: grid; grid-template-columns: 22px 1fr auto; grid-template-areas: "num name step" "num move move"; gap: 6px 8px; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--line); }
+.cw-row:last-child { border-bottom: 0; }
+.cw-num { grid-area: num; color: var(--muted); font-weight: 700; font-size: 13px; text-align: center; }
+.cw-name { grid-area: name; font-weight: 650; font-size: 15px; cursor: pointer; }
+.cw-name .tag { margin-left: 6px; }
+.cw-row .stepper { grid-area: step; }
+.cw-row .stepper b { min-width: 40px; }
+.cw-move { grid-area: move; display: flex; gap: 6px; justify-content: flex-end; }
+.cw-move .icon-btn, .stepper.sm .icon-btn { width: 32px; height: 32px; font-weight: 800; }
+.ex-item.picked { border-color: var(--accent); }
+.cw-item .btn { padding: 10px 12px; }
