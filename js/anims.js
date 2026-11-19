@@ -489,6 +489,58 @@
       { p: { u1: 150, f1: 255 }, d: 500 },
       { p: { t2: 88, s2: 0, a: 12, u2: 70, f2: 150, u1: 150, f1: 255 }, d: 500 },
     ],
+    // ---------- From the Caveman list (one kettlebell, standing) ----------
+    // front view: person faces you, +x = their left side on screen
+    sideBend: [
+      { p: { front: true, root: 'hip', hx: 100, hy: G - 73, t1: 9, s1: 9, t2: -9, s2: -9, a: -9, u1: 0, f1: 0, u2: -28, f2: 55, kb: 'near', km: 'hang' }, d: 1100 },
+      { p: { front: true, root: 'hip', hx: 100, hy: G - 73, t1: 9, s1: 9, t2: -9, s2: -9, a: 18, u1: 0, f1: 0, u2: -10, f2: 60, kb: 'near', km: 'hang' }, d: 1100 },
+    ],
+    ohSideBend: [
+      { p: { front: true, root: 'hip', hx: 100, hy: G - 73, t1: 9, s1: 9, t2: -9, s2: -9, a: 0, u1: 168, f1: 192, u2: 192, f2: 168, kb: 'both', km: 'top' }, d: 900 },
+      { p: { front: true, root: 'hip', hx: 100, hy: G - 73, t1: 9, s1: 9, t2: -9, s2: -9, a: 20, u1: 188, f1: 212, u2: 212, f2: 188, kb: 'both', km: 'top' }, d: 900 },
+      { p: { front: true, root: 'hip', hx: 100, hy: G - 73, t1: 9, s1: 9, t2: -9, s2: -9, a: 0, u1: 168, f1: 192, u2: 192, f2: 168, kb: 'both', km: 'top' }, d: 900 },
+      { p: { front: true, root: 'hip', hx: 100, hy: G - 73, t1: 9, s1: 9, t2: -9, s2: -9, a: -20, u1: 148, f1: 172, u2: 172, f2: 148, kb: 'both', km: 'top' }, d: 900 },
+    ],
+    standSideCrunch: [
+      { p: { front: true, root: 'hip', hx: 100, hy: G - 73, t1: 9, s1: 9, t2: -6, s2: -6, a: 0, u1: 140, f1: 235, u2: -4, f2: -4, kb: 'far', km: 'hang' }, d: 700 },
+      { p: { front: true, root: 'hip', hx: 100, hy: G - 73, t1: 70, s1: 5, t2: -6, s2: -6, a: 16, u1: 95, f1: 170, u2: -10, f2: -10, kb: 'far', km: 'hang' }, d: 700 },
+    ],
+    lateralRaise: [
+      { p: { front: true, root: 'hip', hx: 100, hy: G - 73, t1: 7, s1: 7, t2: -7, s2: -7, u1: 6, f1: 6, u2: -6, f2: -6, kb: 'near', km: 'float' }, d: 1000 },
+      { p: { front: true, root: 'hip', hx: 100, hy: G - 73, t1: 7, s1: 7, t2: -7, s2: -7, u1: 88, f1: 88, u2: -6, f2: -6, kb: 'near', km: 'float' }, d: 1000 },
+    ],
+    frontalHold: [
+      { p: { u1: 90, f1: 90, kb: 'both', km: 'float' }, d: 1600 },
+      { p: { u1: 86, f1: 86, a: -1, kb: 'both', km: 'float' }, d: 1600 },
+    ],
+    gobletMarch: [
+      { p: m(STANDH, { t1: 70, s1: 0 }, gob(0)), d: 450 },
+      { p: m(STANDH, gob(0)), d: 450 },
+      { p: m(STANDH, { t2: 70, s2: 0 }, gob(0)), d: 450 },
+      { p: m(STANDH, gob(0)), d: 450 },
+    ],
+    squatHold: [
+      { p: m({ s1: -30, t1: 88, a: 26 }, gob(26)), d: 1600 },
+      { p: m({ s1: -31, t1: 90, a: 27 }, gob(27)), d: 1600 },
+    ],
+    chairPress: [
+      { p: m({ root: 'hip', hx: 92, hy: G - 36, t1: 90, s1: 0, a: 0 }, rack()), d: 800 },
+      { p: m({ root: 'hip', hx: 92, hy: G - 36, t1: 90, s1: 0, a: 0 }, OH), d: 800 },
+    ],
+    squatLift: [
+      { p: hang2, d: 900 },
+      { p: { s1: -30, t1: 86, a: 32, u1: 0, f1: 0, kb: 'both', km: 'hang' }, d: 900 },
+    ],
+    passUnderLunge: [
+      { p: side1, d: 700 },
+      { p: m(LUNGE, { a: 14, u1: 8, f1: 8, u2: 20, f2: 20, kb: 'near', km: 'hang' }), d: 300 },
+      { p: m(LUNGE, { a: 14, u1: 8, f1: 8, u2: 20, f2: 20, kb: 'far', km: 'hang' }), d: 600 },
+      { p: { u1: 3, f1: 3, u2: 0, f2: 0, kb: 'far', km: 'hang' }, d: 700 },
+    ],
+    calfRaise: [
+      { p: m({ fy: G }, side1), d: 700 },
+      { p: m({ fy: G - 8 }, side1), d: 900 },
+    ],
     // ---------- Recovery (quiet, body weight) ----------
     breathArms: [
       { p: { u1: 4, f1: 4 }, d: 3200 },

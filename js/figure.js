@@ -85,7 +85,7 @@
   function lerp(A, B, t) {
     let a = A, b = B;
     if (A.root !== B.root || A.root === 'hip') { a = toHip(A); b = toHip(B); }
-    const o = { root: a.root, kb: t < 0.5 ? A.kb : B.kb, km: t < 0.5 ? A.km : B.km };
+    const o = { root: a.root, kb: t < 0.5 ? A.kb : B.kb, km: t < 0.5 ? A.km : B.km, front: t < 0.5 ? A.front : B.front };
     for (const k of NUM) o[k] = a[k] + (b[k] - a[k]) * t;
     return o;
   }
@@ -122,6 +122,8 @@
     parts.hair = el('circle', { r: L.head + 0.6, class: 'fg-hair' }, body);
     parts.face = el('circle', { r: L.head - 0.6, class: 'fg-skin-fill' }, body);
     parts.eye = el('circle', { r: 1.3, class: 'fg-eye' }, body);
+    parts.eye2 = el('circle', { r: 1.3, class: 'fg-eye' }, body);
+    parts.far = far;
     parts.kbG = el('g', { class: 'fg-kb' }, svg);
     parts.kbBody = el('circle', { r: 8 }, parts.kbG);
     parts.kbHandle = el('path', { fill: 'none' }, parts.kbG);
@@ -147,7 +149,17 @@
     line(parts.neck, j.sh, neckTop);
     dot(parts.hair, [j.head[0] - fwd[0] * 1.2, j.head[1] - fwd[1] * 1.2]);
     dot(parts.face, [j.head[0] + fwd[0] * 1.1, j.head[1] + fwd[1] * 1.1]);
-    dot(parts.eye, [j.head[0] + fwd[0] * 4.6 + up[0] * 1.2, j.head[1] + fwd[1] * 4.6 + up[1] * 1.2]);
+    if (p.front) {
+      // facing the viewer: both eyes, hair as a cap, both sides fully visible
+      dot(parts.hair, [j.head[0] + up[0] * 1.6, j.head[1] + up[1] * 1.6]);
+      dot(parts.face, [j.head[0] - up[0] * 0.8, j.head[1] - up[1] * 0.8]);
+      dot(parts.eye, [j.head[0] + fwd[0] * 3 + up[0] * 0.5, j.head[1] + fwd[1] * 3 + up[1] * 0.5]);
+      dot(parts.eye2, [j.head[0] - fwd[0] * 3 + up[0] * 0.5, j.head[1] - fwd[1] * 3 + up[1] * 0.5]);
+      parts.eye2.style.display = ''; parts.far.style.opacity = '1';
+    } else {
+      dot(parts.eye, [j.head[0] + fwd[0] * 4.6 + up[0] * 1.2, j.head[1] + fwd[1] * 4.6 + up[1] * 1.2]);
+      parts.eye2.style.display = 'none'; parts.far.style.opacity = '';
+    }
     line(parts.nearUA, j.sh, j.e1); line(parts.nearFA, j.e1, j.h1); dot(parts.nearHand, j.h1);
     if (p.kb) {
       let h = p.kb === 'far' ? j.h2 : p.kb === 'both' ? [(j.h1[0] + j.h2[0]) / 2, (j.h1[1] + j.h2[1]) / 2] : j.h1;

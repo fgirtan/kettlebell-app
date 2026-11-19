@@ -41,9 +41,11 @@
     deadlift: 1, sumoDL: 1, suitcaseDL: 1, kickstand: 1, sldl: 1, row: 1, plankRow: 1, pushPress: 1, thruster: 1, thruster2: 1,
     goblet: 1, gobletPause: 1, squatPulse: 1, rackSquat: 1, sumoSquat: 1, cossack: 1, revLunge: 1, fwdLunge: 1, splitSquat: 1,
     rackLunge: 1, suitLunge: 1, ohLunge: 2, lungeKnee: 1, latLunge: 1, curtsy: 1, press: 0, press2: 0, bottomsUp: 0, triExt: 1,
-    carry: 1, rackMarch: 1, ohMarch: 1, tgu: 1, uprightRow: 0, boxSquat: 0, supRow: 0, standPull: 0,
+    carry: 1, rackMarch: 1, ohMarch: 1, tgu: 1, uprightRow: 0, boxSquat: 0, supRow: 0, standPull: 0, sideBend: 1, ohSideBend: 1, squatHold: 1, squatLift: 1, passUnderLunge: 1,
   };
   const back = (e) => BACK[e.id] || 0;
+  // small accessory moves shouldn't crowd out the main lifts
+  const PICK_WEIGHT = { calfRaise: 0.3, lateralRaise: 0.6, frontRaise: 0.6, curl: 0.8, curl1: 0.8 };
 
   // Body / kettlebell position at the start and end of each movement
   const POS = {
@@ -57,7 +59,7 @@
     situp: 'supine', crunch: 'supine', halo: 'goblet', aroundWorld: 'hang', fig8: 'hang', deadbug: 'supine', hollow: 'supine', vsit: 'seated',
     legRaise: 'supine', plankDrag: 'prone', plank: 'prone', woodchop: 'hang', windmill: 'oh', thruster: 'rack', thruster2: 'goblet',
     carry: 'hang', rackMarch: 'rack', ohMarch: 'oh', tgu: 'supine',
-    pressOut: 'goblet', standCrunch: 'hang', rowSup: 'hang', standPullover: 'goblet', haloKneel: 'kneel', boxSquat: 'goblet', deadbugPull: 'supine', birdDog: 'prone',
+    pressOut: 'goblet', standCrunch: 'hang', sideBend: 'hang', ohSideBend: 'oh', standSideCrunch: 'hang', lateralRaise: 'hang', frontalHold: 'goblet', gobletMarch: 'goblet', squatHold: 'goblet', chairPress: 'rack', squatLift: 'hang', passUnderLunge: 'hang', calfRaise: 'hang', rowSup: 'hang', standPullover: 'goblet', haloKneel: 'kneel', boxSquat: 'goblet', deadbugPull: 'supine', birdDog: 'prone',
   };
   const STANDING = new Set(['hang', 'goblet', 'rack', 'oh']);
   const NEAR = new Set(['hang|goblet', 'goblet|rack', 'rack|oh', 'goblet|kneel', 'rack|kneel', 'supine|seated', 'supine|prone', 'prone|seated', 'kneel|prone']);
@@ -147,7 +149,7 @@
       const scored = list.map((e) => [e, transitionCost(e, seq, f, slot)]);
       const best = Math.min(...scored.map((x) => x[1]));
       const near = scored.filter((x) => x[1] <= best + 3); // the most natural options, then vary among them
-      return weightedPick(near.map(([e]) => [e, (e.level === level ? 3 : e.level === level - 1 ? 2 : 1) * (recent.has(e.id) ? 0.15 : 1) * (used.has(e.id) ? 0.5 : 1)]));
+      return weightedPick(near.map(([e]) => [e, (e.level === level ? 3 : e.level === level - 1 ? 2 : 1) * (recent.has(e.id) ? 0.15 : 1) * (used.has(e.id) ? 0.5 : 1) * (PICK_WEIGHT[e.id] || 1)]));
     }
     return null;
   }
