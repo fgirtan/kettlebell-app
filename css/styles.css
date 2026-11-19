@@ -223,7 +223,7 @@ input[type=range] { width: 100%; accent-color: var(--accent); }
 .stepper b { min-width: 46px; text-align: center; font-variant-numeric: tabular-nums; }
 .stepper .icon-btn { width: 34px; height: 34px; }
 
-.toast { position: fixed; left: 50%; bottom: calc(var(--tabs-h) + var(--safe-b) + 16px); transform: translateX(-50%); background: var(--text); color: var(--bg); padding: 10px 16px; border-radius: 12px; font-size: 14px; font-weight: 600; z-index: 40; max-width: 90vw; }
+.toast { position: fixed; left: 50%; bottom: calc(var(--tabs-h) + var(--safe-b) + 16px); transform: translateX(-50%); background: var(--text); color: var(--bg); padding: 10px 16px; border-radius: 12px; font-size: 14px; font-weight: 600; z-index: 40; max-width: 90vw; pointer-events: none; }
 
 @media (min-width: 700px) {
   .p-stage svg { max-height: 52vh; }

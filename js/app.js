@@ -16,7 +16,7 @@
   };
 
   // ---------- Storage ----------
-  const APP_VERSION = '2026.11.19 (v23)';
+  const APP_VERSION = '2026.11.19 (v24)';
   const KEY = 'kettlebell.v1';
   const DEFAULTS = {
     settings: { minutes: 30, level: 1, focus: 'full', sound: true, voice: true, vibrate: true, theme: 'auto', voiceName: '', voiceRate: 1, voiceVol: 1, prepCue: 'ticks', silentMode: true, voiceEngine: 'clips', clipVoice: 'm', visual: 'photo', backSafe: true, lowFloor: true, twoBells: false, hrAge: 40, hrWarn: true, hrWarnPct: 85 },
@@ -947,8 +947,15 @@
       const ci = Math.floor((x.dur - this.remain) / 10) % e.cues.length;
       if (ci !== this.cueIdx) { this.cueIdx = ci; $('.p-cue', this.el).textContent = e.cues[ci]; }
       if (this.remain <= 0) {
-        if (this.idx + 1 >= this.iv.length) return this.finish();
-        this.enter(this.idx + 1);
+        // carry the overshoot into the next interval(s) so the session stays exactly as long as chosen,
+        // even when the phone throttles the timer
+        let over = -this.remain;
+        for (;;) {
+          if (this.idx + 1 >= this.iv.length) return this.finish();
+          this.enter(this.idx + 1);
+          if (over < this.remain) { this.remain -= over; break; }
+          over -= this.remain;
+        }
       }
       this.renderTime();
     },

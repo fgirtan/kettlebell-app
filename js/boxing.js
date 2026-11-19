@@ -385,7 +385,9 @@
       if (this.remain <= 0) {
         if (x.phase === 'box') { bell(Fx, S, 3); Fx.buzz([150, 80, 150]); }
         if (this.idx + 1 >= this.iv.length) return this.finish();
+        const over = -this.remain;
         this.enter(this.idx + 1);
+        this.remain = Math.max(0.05, this.remain - over); // keep the session exactly as long as chosen
       }
       this.renderTime();
     },
