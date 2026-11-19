@@ -18,7 +18,7 @@
   // ---------- Storage ----------
   const KEY = 'kettlebell.v1';
   const DEFAULTS = {
-    settings: { minutes: 30, level: 1, focus: 'full', sound: true, voice: true, vibrate: true, theme: 'auto', voiceName: '', voiceRate: 1, voiceVol: 1, prepCue: 'ticks', silentMode: true, voiceEngine: 'clips', clipVoice: 'm', visual: 'photo', backSafe: true, lowFloor: true },
+    settings: { minutes: 30, level: 1, focus: 'full', sound: true, voice: true, vibrate: true, theme: 'auto', voiceName: '', voiceRate: 1, voiceVol: 1, prepCue: 'ticks', silentMode: true, voiceEngine: 'clips', clipVoice: 'm', visual: 'photo', backSafe: true, lowFloor: true, hrAge: 40, hrWarn: true, hrWarnPct: 85 },
     plan: null,
     history: [],
   };
@@ -34,6 +34,7 @@
   store.recent = store.recent || [];
   if (store.plan && store.plan.v !== 4) store.plan = null; // plan from an older version
   if (!S.maleDefault) { S.clipVoice = 'm'; S.maleDefault = true; } // male voice chosen as the default
+  window.KB_SETTINGS = S;
   const save = () => { try { localStorage.setItem(KEY, JSON.stringify(store)); } catch (e) { /* storage unavailable */ } };
   save();
 
@@ -48,6 +49,32 @@
   const fmtMin = (sec) => `${Math.round(sec / 60)} min`;
   const fmtSec = (s) => (s >= 60 ? (s % 60 ? `${Math.floor(s / 60)}m ${s % 60}s` : `${s / 60} min`) : `${s}s`);
   function svgFig() { const s = document.createElementNS(NS, 'svg'); s.setAttribute('class', 'fig'); return s; }
+  // ---------- Heart rate (chest strap) in the players ----------
+  const HRUI = {
+    high: 0, lastWarn: 0,
+    bind(el) {
+      const upd = (b) => {
+        if (!el.isConnected) return;
+        el.hidden = !HR.connected && !b;
+        el.innerHTML = `<span class="heart">♥</span> ${b || '--'}`;
+        el.className = 'hr-badge z' + HR.zone(b, S);
+      };
+      upd(HR.bpm);
+      return HR.on(upd);
+    },
+    // Called every tick: voice warning when heart rate stays above the limit for 10 s
+    check(dt) {
+      const b = HR.bpm;
+      if (!S.hrWarn || !b) { this.high = 0; return; }
+      if (b >= HR.maxHr(S) * (S.hrWarnPct / 100)) this.high += dt; else this.high = 0;
+      if (this.high >= 10 && Date.now() - this.lastWarn > 60000) {
+        this.lastWarn = Date.now(); this.high = 0;
+        Fx.say('Heart rate high. Slow down and breathe.', true); Fx.buzz([200, 100, 200]);
+        toast(`Heart rate ${b} – slow down, take a breather`);
+      }
+    },
+  };
+
   // Real-person photo (start/end position cross-fading) when available, otherwise the animated figure
   const photoKey = (id) => (S.visual !== 'figure' && self.PHOTOS ? self.PHOTOS[id] : null);
   function photoEl(key, still) {
@@ -386,7 +413,7 @@
       if (x.type === 'recovery') {
         c.innerHTML = `<div class="date"><b>${dt.getDate()}</b><span>${MONTHS[dt.getMonth()]}</span></div>
           <div style="flex:1;min-width:0"><div style="font-weight:700">🧘 Recovery · ${fmtMin(x.sec)}</div>
-          <div class="small muted">${(Recovery.FOCUS[x.focus] || {}).label || ''} · ${x.ex.length} moves${x.done ? '' : ' · stopped early'}</div>
+          <div class="small muted">${(Recovery.FOCUS[x.focus] || {}).label || ''} · ${x.ex.length} moves${x.done ? '' : ' · stopped early'}${x.hr ? ` · ♥ avg ${x.hr.avg} / max ${x.hr.max}` : ''}</div>
           <div class="small muted" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${x.ex.map((id) => (EX[id] ? EX[id].name : id)).join(' · ')}</div></div>`;
         hl.appendChild(c);
         return;
@@ -394,13 +421,13 @@
       if (x.type === 'boxing') {
         c.innerHTML = `<div class="date"><b>${dt.getDate()}</b><span>${MONTHS[dt.getMonth()]}</span></div>
           <div style="flex:1;min-width:0"><div style="font-weight:700">🥊 Shadowboxing · ${fmtMin(x.sec)}</div>
-          <div class="small muted">${x.mode === 'rounds' ? `${x.rounds} × ${fmt(x.roundSec)} rounds` : 'Continuous'} · ${Boxing.LEVELS[x.level].label} · ${x.combos} combos${x.done ? '' : ' · stopped early'}</div></div>`;
+          <div class="small muted">${x.mode === 'rounds' ? `${x.rounds} × ${fmt(x.roundSec)} rounds` : 'Continuous'} · ${Boxing.LEVELS[x.level].label} · ${x.combos} combos${x.done ? '' : ' · stopped early'}${x.hr ? ` · ♥ avg ${x.hr.avg} / max ${x.hr.max}` : ''}</div></div>`;
         hl.appendChild(c);
         return;
       }
       c.innerHTML = `<div class="date"><b>${dt.getDate()}</b><span>${MONTHS[dt.getMonth()]}</span></div>
         <div style="flex:1;min-width:0"><div style="font-weight:700">${fmtMin(x.sec)} · Kettlebell · ${Generator.FOCUS_LABEL[x.focus] || ''}</div>
-        <div class="small muted">${LEVEL_LABEL[x.level]} · ${x.ex.length} exercises${x.done ? '' : ' · stopped early'}</div>
+        <div class="small muted">${LEVEL_LABEL[x.level]} · ${x.ex.length} exercises${x.done ? '' : ' · stopped early'}${x.hr ? ` · ♥ avg ${x.hr.avg} / max ${x.hr.max}` : ''}</div>
         <div class="small muted" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${x.ex.map((id) => (EX[id] ? EX[id].name : id)).join(' · ')}</div></div>`;
       hl.appendChild(c);
     });
@@ -426,6 +453,18 @@
           <div class="seg mini" id="prepCue" style="min-width:180px">${[['ticks', 'Soft ticks'], ['count', '3-2-1 voice'], ['off', 'Off']].map(([v, l]) => `<button data-v="${v}" class="${S.prepCue === v ? 'on' : ''}">${l}</button>`).join('')}</div></div>
         ${sw('vibrate', 'Vibration', 'On phones that support it')}
         ${sw('silentMode', 'Play when phone is on silent', 'Voice and sounds work even with the silent switch on. On iPhone this may pause music playing in another app.')}
+      </div>
+      <div class="card"><p class="label">Heart rate strap</p>
+        ${HR.supported ? `
+        <div class="set-row"><div><div id="hrStatus">${HR.connected ? 'Connected: ' + HR.name : 'Not connected'}</div><div class="small muted">Polar H10 or any Bluetooth chest strap. Put it on (wet the electrodes) before connecting.</div></div>
+          <div class="hr-live" id="hrLive">${HR.bpm ? '♥ ' + HR.bpm : ''}</div></div>
+        <button class="btn ${HR.connected ? 'ghost' : 'primary'} block" id="hrBtn">${HR.connected ? 'Disconnect' : 'Connect heart rate strap'}</button>
+        <div class="set-row"><div><div>Age</div><div class="small muted">For heart-rate zones · max ≈ <b id="hrMax">${HR.maxHr(S)}</b> bpm</div></div>
+          <div class="stepper"><button class="icon-btn" data-age="-1">${ICON.minus}</button><b id="hrAge">${S.hrAge}</b><button class="icon-btn" data-age="1">${ICON.plus}</button></div></div>
+        <div class="set-row"><div><div>Warn me when it's too high</div><div class="small muted">Voice tells you to slow down if you stay above the limit for 10 s</div></div><label class="switch"><input type="checkbox" id="hrWarn" ${S.hrWarn ? 'checked' : ''}><span></span></label></div>
+        <div class="set-row"><div>Limit</div><div class="seg mini" id="hrPct" style="min-width:200px">${[80, 85, 90].map((p) => `<button data-v="${p}" class="${S.hrWarnPct === p ? 'on' : ''}">${p}% · ${Math.round(HR.maxHr(S) * p / 100)}</button>`).join('')}</div></div>
+        ` : `<p class="small" style="margin:0">This browser can't connect to Bluetooth heart-rate straps.</p>
+        <p class="small muted" style="margin:8px 0 0"><b>Android:</b> open the app in <b>Chrome</b>. <b>iPhone:</b> Safari and other iPhone browsers block Bluetooth for web apps; a browser with Web Bluetooth support (e.g. <b>Bluefy</b>) can open the app and connect the strap.</p>`}
       </div>
       <div class="card"><p class="label">Exercise visuals</p>
         <div class="seg" id="visual">${[['photo', 'Real photos'], ['figure', 'Animation']].map(([k, l]) => `<button data-v="${k}" class="${(S.visual === 'figure' ? 'figure' : 'photo') === k ? 'on' : ''}">${l}</button>`).join('')}</div>
@@ -482,6 +521,18 @@
       setTimeout(() => { Fx.switchCue(); Fx.say('Switch hands.'); }, 8200);
       setTimeout(() => { if ($('#player').hidden) Fx.mediaMode(false); }, 11000);
     };
+    if (HR.supported) {
+      const refresh = () => { if (tab === 'settings') render(); };
+      $('#hrBtn').onclick = async () => {
+        if (HR.connected) { HR.disconnect(); refresh(); return; }
+        try { const n = await HR.connect(); toast('Connected to ' + n); refresh(); }
+        catch (e) { if (e && e.name !== 'NotFoundError') toast('Could not connect – is the strap on and Bluetooth enabled?'); }
+      };
+      const off = HR.on((b) => { const l = $('#hrLive'); if (!l) return off(); l.textContent = b ? '♥ ' + b : ''; const st = $('#hrStatus'); if (st) st.textContent = HR.connected ? 'Connected: ' + HR.name : 'Not connected'; });
+      $$('[data-age]').forEach((b) => (b.onclick = () => { S.hrAge = Math.max(14, Math.min(90, S.hrAge + +b.dataset.age)); save(); render(); }));
+      $('#hrWarn').onchange = (e) => { S.hrWarn = e.target.checked; save(); };
+      $$('#hrPct button').forEach((b) => (b.onclick = () => { S.hrWarnPct = +b.dataset.v; save(); $$('#hrPct button').forEach((x) => x.classList.toggle('on', x === b)); }));
+    }
     $$('#visual button').forEach((b) => (b.onclick = () => { S.visual = b.dataset.v; save(); $$('#visual button').forEach((x) => x.classList.toggle('on', x === b)); }));
     $$('#theme button').forEach((b) => (b.onclick = () => { S.theme = b.dataset.t; save(); applyTheme(); $$('#theme button').forEach((x) => x.classList.toggle('on', x === b)); }));
     $('#clearHist').onclick = () => { if (confirm('Delete your entire workout history?')) { store.history = []; save(); toast('History cleared'); } };
@@ -650,7 +701,7 @@
       document.body.style.overflow = 'hidden';
       this.el.innerHTML = `
         <div class="p-top"><div><div class="p-phase"></div><div class="p-label"></div></div><div class="spacer"></div>
-          <div class="p-left"><b id="pLeft"></b><span>left</span></div><button class="icon-btn" id="pClose" aria-label="Quit workout">${ICON.close}</button></div>
+          <div class="hr-badge" id="pHr" hidden></div><div class="p-left"><b id="pLeft"></b><span>left</span></div><button class="icon-btn" id="pClose" aria-label="Quit workout">${ICON.close}</button></div>
         <div class="p-progress"><i></i></div>
         <div class="p-stage"><span class="p-badge" hidden></span></div>
         <div class="p-name"></div>
@@ -671,6 +722,8 @@
       $('#pPlay').onclick = () => this.toggle();
       $('#pNext').onclick = () => this.jump(1);
       $('#pPrev').onclick = () => this.jump(-1);
+      this.hrOff = HRUI.bind($('#pHr'));
+      HR.startSession();
       this.enter(0, true);
       this.wake();
       this.timer = setInterval(() => this.tick(), 200);
@@ -819,6 +872,7 @@
       const now = performance.now();
       const dt = (now - this.last) / 1000; this.last = now;
       if (!this.running) return;
+      HRUI.check(dt);
       this.remain -= dt;
       const sec = Math.ceil(this.remain);
       if (sec >= 1 && this.lastBeep !== sec && sec < Math.ceil(this.iv[this.idx].dur)) {
@@ -888,12 +942,14 @@
     doneSec() { return this.elapsedBefore + (this.iv[this.idx].dur - this.remain) - this.skipped; },
     record(done) {
       const sec = Math.round(this.doneSec());
+      const hr = HR.stopSession();
       if (sec < 120) return;
+      if (hr) this._hr = hr;
       if (this.plan.kind === 'recovery') {
-        store.history.push({ type: 'recovery', date: Date.now(), sec, minutes: this.plan.minutes, focus: this.plan.focus, ex: this.plan.items.slice(), done });
+        store.history.push({ type: 'recovery', date: Date.now(), sec, minutes: this.plan.minutes, focus: this.plan.focus, ex: this.plan.items.slice(), done, hr });
         return save();
       }
-      store.history.push({ date: Date.now(), sec, minutes: this.plan.minutes, focus: this.plan.focus, level: this.plan.level, ex: [...new Set(this.plan.main)], done });
+      store.history.push({ date: Date.now(), sec, minutes: this.plan.minutes, focus: this.plan.focus, level: this.plan.level, ex: [...new Set(this.plan.main)], done, hr });
       save();
     },
     exit() {
@@ -924,6 +980,8 @@
     },
     close() {
       clearInterval(this.timer);
+      if (this.hrOff) { this.hrOff(); this.hrOff = null; }
+      HR.stopSession();
       Fx.mediaMode(false);
       if (this.svg) Figure.stop(this.svg);
       Fx.stopVoice();
@@ -942,7 +1000,7 @@
 
   // Helpers shared with the shadowboxing module (js/boxing.js)
   function api() {
-    return { S, store, save, Fx, ICON, fmt, fmtSec, fmtMin, toast, $, $$, rerender: render, goTab: (t) => { tab = t; render(); }, exItem, startPlayer: (plan) => Player.start(plan) };
+    return { S, store, save, Fx, ICON, fmt, fmtSec, fmtMin, toast, $, $$, rerender: render, HRUI, goTab: (t) => { tab = t; render(); }, exItem, startPlayer: (plan) => Player.start(plan) };
   }
 
   // Block zoom: iOS Safari ignores user-scalable=no, so stop pinch gestures and fast double-taps here too

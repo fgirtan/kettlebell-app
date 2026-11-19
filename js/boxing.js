@@ -277,7 +277,7 @@
       document.body.style.overflow = 'hidden';
       this.el.innerHTML = `
         <div class="p-top"><div><div class="p-phase"></div><div class="p-label"></div></div><div class="spacer"></div>
-          <div class="p-left"><b id="bLeft"></b><span>left</span></div><button class="icon-btn" id="bClose" aria-label="Stop">${ICON.close}</button></div>
+          <div class="hr-badge" id="bHr" hidden></div><div class="p-left"><b id="bLeft"></b><span>left</span></div><button class="icon-btn" id="bClose" aria-label="Stop">${ICON.close}</button></div>
         <div class="p-progress"><i></i></div>
         <div class="bx-stage"><div class="bx-combo" id="bxCombo"></div><div class="bx-sub" id="bxSub"></div></div>
         <div class="p-timer" id="bxTimer"></div>
@@ -291,6 +291,8 @@
       $('#bPlay').onclick = () => this.toggle();
       $('#bNext').onclick = () => this.jump(1);
       $('#bPrev').onclick = () => this.jump(-1);
+      this.hrOff = api.HRUI.bind($('#bHr'));
+      if (global.HR) HR.startSession();
       this.enter(0);
       this.wake();
       this.timer = setInterval(() => this.tick(), 100);
@@ -361,6 +363,7 @@
       if (!this.running) return;
       const { Fx, S } = this.api;
       const x = this.iv[this.idx];
+      this.api.HRUI.check(dt);
       this.remain -= dt;
       if (x.phase === 'box') {
         this.boxed += dt; this.sinceBurst += dt;
@@ -400,9 +403,10 @@
     },
     record(done) {
       const sec = Math.round(this.boxed);
+      const hr = global.HR ? HR.stopSession() : null;
       if (sec < 60) return;
       const c = this.cfg;
-      this.api.store.history.push({ type: 'boxing', date: Date.now(), sec, done, mode: c.mode, rounds: c.mode === 'rounds' ? c.rounds : 0, roundSec: c.roundSec, level: c.level, combos: this.combos });
+      this.api.store.history.push({ type: 'boxing', date: Date.now(), sec, done, mode: c.mode, rounds: c.mode === 'rounds' ? c.rounds : 0, roundSec: c.roundSec, level: c.level, combos: this.combos, hr });
       this.api.save();
     },
     exit() {
@@ -422,6 +426,8 @@
     },
     close() {
       clearInterval(this.timer);
+      if (this.hrOff) { this.hrOff(); this.hrOff = null; }
+      if (global.HR) HR.stopSession();
       this.api.Fx.stopVoice();
       this.api.Fx.mediaMode(false);
       try { if (this.lock) this.lock.release(); } catch (e) { /* ignore */ }

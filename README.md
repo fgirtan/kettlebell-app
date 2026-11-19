@@ -67,6 +67,13 @@ A separate **Recovery** tab for quiet, equipment-free sessions (fine for an apar
 - **Watch real demo:** a button on every exercise page opens real demonstration videos on YouTube (needs internet).
 - **Your own video or photo:** attach one to any exercise (*＋ Add my video/photo*). It is stored on the device (IndexedDB), works offline, and replaces the photo or animation in the list, the exercise page and the player.
 
+## Heart rate (Polar H10 or any Bluetooth chest strap)
+
+- **Connect:** Settings → Heart rate strap → *Connect* uses Web Bluetooth and the standard Heart Rate service. This works in Chrome/Edge on Android and desktop. iPhone browsers block Web Bluetooth, except browsers such as Bluefy.
+- **Live heart rate:** shown in every player (kettlebell, boxing, recovery), colored by zone (1–5, as % of max HR = 208 − 0.7 × age).
+- **Warning:** an optional voice warning when heart rate stays above a limit (80/85/90% of max) for 10 seconds.
+- **History:** average and max heart rate are saved with each session.
+
 ## Voice
 
 The coach uses **recorded voice clips** generated with the open-source **Kokoro** TTS: a male voice ("Michael", `audio/m/`, default) and a female voice ("Heart", `audio/f/`). They play like music, so you hear them **even when an iPhone is on silent**. Settings → Voice lets you pick *Female*, *Male* or *Phone*; the phone voice uses the built-in speech, which is muted on silent.
