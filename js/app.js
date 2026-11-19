@@ -16,7 +16,7 @@
   };
 
   // ---------- Storage ----------
-  const APP_VERSION = '2026.11.19 (v21)';
+  const APP_VERSION = '2026.11.19 (v23)';
   const KEY = 'kettlebell.v1';
   const DEFAULTS = {
     settings: { minutes: 30, level: 1, focus: 'full', sound: true, voice: true, vibrate: true, theme: 'auto', voiceName: '', voiceRate: 1, voiceVol: 1, prepCue: 'ticks', silentMode: true, voiceEngine: 'clips', clipVoice: 'm', visual: 'photo', backSafe: true, lowFloor: true, twoBells: false, hrAge: 40, hrWarn: true, hrWarnPct: 85 },
@@ -319,9 +319,14 @@
   }
 
   // ---------- Exercise detail sheet ----------
-  function openSheet(id) {
+  function openSheet(id, opts) {
     const e = EX[id];
-    const sh = $('#sheet');
+    const stacked = opts && opts.stacked;
+    let sh = $('#sheet');
+    if (stacked) {
+      sh = $('#sheet2');
+      if (!sh) { sh = document.createElement('div'); sh.id = 'sheet2'; sh.className = 'sheet stacked'; sh.hidden = true; document.body.appendChild(sh); }
+    }
     sh.innerHTML = `<div class="sheet-body" role="dialog" aria-label="${e.name}">
       <div class="grab"></div>
       <div class="row" style="justify-content:flex-end"><button class="icon-btn" id="shClose" aria-label="Close">${ICON.close}</button></div>
@@ -331,6 +336,7 @@
       <p style="margin:10px 0 4px">${regionTag(e)}<span class="tag">${CAT_LABEL[e.cat]}</span><span class="tag">${LEVEL_LABEL[e.level]}</span>${e.uni ? '<span class="tag">each side</span>' : ''}${e.alt ? '<span class="tag">alternating</span>' : ''}${e.floor ? '<span class="tag">on the floor</span>' : ''}${e.bw ? '<span class="tag">bodyweight</span>' : ''}${e.eq === 2 ? '<span class="tag">2 kettlebells</span>' : ''}<span class="tag back${backOf(e)}">Back load: ${['low', 'moderate', 'high'][backOf(e)]}</span></p>
       ${e.lib ? '<p class="small muted" style="margin:4px 0 0">From the Caveman Kettlebells exercise list · animation shows the closest basic movement – tap ▶ Watch real demo for the exact variation.</p>' : ''}
       <p class="small muted" style="margin:6px 0 0">Muscles: ${e.muscles.join(', ')}</p>
+      ${opts && opts.onAdd ? '<button class="btn primary block" id="shAdd" style="margin-top:12px">＋ Add to workout</button>' : ''}
       <div class="media-actions">
         <button class="btn ghost" id="watchDemo">▶ Watch real demo</button>
         <label class="btn ghost" id="addOwn">＋ ${Media.get(id) ? 'Replace my video' : 'Add my video/photo'}<input type="file" accept="video/*,image/*" hidden></label>
@@ -358,6 +364,7 @@
       return true;
     };
     if (!showOwn()) showVis(S.visual === 'figure' ? 'figure' : 'photo');
+    const addB = $('#shAdd', sh); if (addB) addB.onclick = () => { opts.onAdd(); close(); };
     $('#watchDemo', sh).onclick = () => {
       const q = e.cat === 'recovery' || e.cat === 'stretch' || e.cat === 'warmup' ? `${e.name} how to` : `${e.name} kettlebell exercise technique`;
       window.open('https://www.youtube.com/results?search_query=' + encodeURIComponent(q), '_blank', 'noopener');
@@ -366,16 +373,16 @@
       const f = ev.target.files && ev.target.files[0];
       if (!f) return;
       if (f.size > 60 * 1024 * 1024) { toast('That file is over 60 MB – trim it to a short clip first'); return; }
-      try { await Media.put(id, f); toast('Saved – shown for this exercise from now on'); close(); openSheet(id); render(); }
+      try { await Media.put(id, f); toast('Saved – shown for this exercise from now on'); close(); openSheet(id, opts); if (!stacked) render(); }
       catch (err) { toast('Could not save the file on this device'); }
     };
     const rm = $('#removeOwn', sh);
-    if (rm) rm.onclick = async () => { await Media.remove(id); toast('Removed'); close(); openSheet(id); render(); };
+    if (rm) rm.onclick = async () => { await Media.remove(id); toast('Removed'); close(); openSheet(id, opts); if (!stacked) render(); };
     $$('#visSeg button', sh).forEach((b) => (b.onclick = () => {
       S.visual = b.dataset.v; save(); $$('#visSeg button', sh).forEach((x) => x.classList.toggle('on', x === b)); showVis(S.visual);
     }));
     sh.hidden = false;
-    const close = () => { Figure.stop(svg); sh.hidden = true; sh.innerHTML = ''; };
+    const close = () => { Figure.stop(svg); sh.hidden = true; sh.innerHTML = ''; if (opts && opts.onClose) opts.onClose(); };
     $('#shClose').onclick = close;
     sh.onclick = (ev) => { if (ev.target === sh) close(); };
   }
@@ -1078,11 +1085,14 @@
       // look for a new version whenever the app comes back to the foreground
       document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') reg.update().catch(() => {}); });
     }).catch(() => {}));
-    // a new version took over: reload once (but never in the middle of a workout)
+    // a new version took over: reload once – but not on the very first install, and never in the
+    // middle of a workout or while you're editing one (it would lose what you were doing)
     let reloading = false;
+    const hadController = !!navigator.serviceWorker.controller;
     navigator.serviceWorker.addEventListener('controllerchange', () => {
-      if (reloading) return;
-      if (!$('#player').hidden) { toast('Update ready – it will load next time you open the app'); return; }
+      if (reloading || !hadController) return;
+      const busy = !$('#player').hidden || (window.Custom && Custom.isEditing()) || !$('#sheet').hidden;
+      if (busy) { toast('Update ready – it will load next time you open the app'); return; }
       reloading = true; location.reload();
     });
   }

@@ -298,3 +298,5 @@ input[type=range] { width: 100%; accent-color: var(--accent); }
 .filters { margin-top: 8px; }
 .filters .chip { font-size: 13px; padding: 6px 12px; }
 .tag.back0 { color: #3ecf8e; } .tag.back1 { color: #f5c542; } .tag.back2 { color: #ff6b6b; }
+
+.sheet.stacked { z-index: 25; }

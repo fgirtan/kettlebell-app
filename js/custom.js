@@ -150,7 +150,9 @@
       api.batchList(box, items, (e) => {
         const add = () => { editing.items.push({ ex: e.id, sec: S.timing.work }); added++; toast(`Added ${e.name}`); draw(); };
         const row = api.exItem(e.id, undefined, { onSwap: add });
-        row.querySelector('.info').onclick = add; row.querySelector('.thumb').onclick = add;
+        // only the + button adds; tapping the picture or name shows the animation and how-to
+        const info = () => api.openSheet(e.id, { stacked: true, onAdd: add });
+        row.querySelector('.info').onclick = info; row.querySelector('.thumb').onclick = info;
         const btn = row.querySelector('.icon-btn:last-child');
         if (btn) { btn.innerHTML = ICON.plus.replace('<svg', '<svg fill="none" stroke="currentColor" stroke-width="2.4"'); btn.setAttribute('aria-label', 'Add'); }
         const n = editing.items.filter((it) => it.ex === e.id).length;
