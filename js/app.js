@@ -16,7 +16,7 @@
   };
 
   // ---------- Storage ----------
-  const APP_VERSION = '2026.11.19 (v24)';
+  const APP_VERSION = '2026.11.19 (v25)';
   const KEY = 'kettlebell.v1';
   const DEFAULTS = {
     settings: { minutes: 30, level: 1, focus: 'full', sound: true, voice: true, vibrate: true, theme: 'auto', voiceName: '', voiceRate: 1, voiceVol: 1, prepCue: 'ticks', silentMode: true, voiceEngine: 'clips', clipVoice: 'm', visual: 'photo', backSafe: true, lowFloor: true, twoBells: false, hrAge: 40, hrWarn: true, hrWarnPct: 85 },
@@ -399,16 +399,19 @@
     return d;
   }
   const passFilters = (e, state) => FILTERS.every(([k, , fn]) => !state[k] || fn(e));
-  // Render long lists in batches so 500+ exercises stay fast on a phone
-  function batchList(box, items, make, step = 40) {
+  // Render the whole list: the first rows right away, the rest in small background chunks so the phone stays smooth
+  function batchList(box, items, make, step = 50) {
+    const token = (box._listToken = (box._listToken || 0) + 1);
     let shown = 0;
-    const more = document.createElement('button'); more.className = 'btn ghost block'; more.style.marginTop = '8px';
     const next = () => {
-      items.slice(shown, shown + step).forEach((x) => box.insertBefore(make(x), more));
-      shown = Math.min(items.length, shown + step);
-      more.hidden = shown >= items.length; more.textContent = `Show more (${items.length - shown} left)`;
+      if (box._listToken !== token || !box.isConnected) return; // list was redrawn or closed
+      const frag = document.createDocumentFragment();
+      items.slice(shown, shown + step).forEach((x) => frag.appendChild(make(x)));
+      box.appendChild(frag);
+      shown += step;
+      if (shown < items.length) setTimeout(next, 16);
     };
-    box.appendChild(more); more.onclick = next; next();
+    next();
   }
 
   // ---------- Library ----------

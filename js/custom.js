@@ -145,10 +145,12 @@
       const q = pickerQuery.trim().toLowerCase();
       const fb = $('#pkFilters', sh); fb.innerHTML = ''; fb.appendChild(api.filterBar(S.pickFilters, draw));
       const items = EXERCISES.filter((e) => (pickerCat === 'all' || e.cat === pickerCat) && api.passFilters(e, S.pickFilters) && (!q || [e.name, e.muscles.join(' ')].join(' ').toLowerCase().includes(q)));
-      $('#pkCount', sh).textContent = `${items.length} exercises · tap + to add${added ? ` · ${added} added` : ''}`;
+      const count = () => { $('#pkCount', sh).textContent = `${items.length} exercises · tap + to add${added ? ` · ${added} added` : ''}`; };
+      count();
       const box = $('#pkList', sh); box.innerHTML = '';
       api.batchList(box, items, (e) => {
-        const add = () => { editing.items.push({ ex: e.id, sec: S.timing.work }); added++; toast(`Added ${e.name}`); draw(); };
+        // adding only marks this row, so the list keeps its place
+        const add = () => { editing.items.push({ ex: e.id, sec: S.timing.work }); added++; toast(`Added ${e.name}`); row.classList.add('picked'); count(); };
         const row = api.exItem(e.id, undefined, { onSwap: add });
         // only the + button adds; tapping the picture or name shows the animation and how-to
         const info = () => api.openSheet(e.id, { stacked: true, onAdd: add });
