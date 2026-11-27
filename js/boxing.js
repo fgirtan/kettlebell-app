@@ -256,12 +256,12 @@
 
   // ---------- Player ----------
   const Player = {
-    start(api) {
+    start(api, resume) {
       this.api = api;
       const { Fx, ICON, $ } = api;
       Fx.unlock();
       Fx.stopVoice();
-      const c = this.cfg = Object.assign({}, cfgOf(api));
+      const c = this.cfg = Object.assign({}, resume ? resume.cfg : cfgOf(api));
       this.iv = [];
       if (c.prep) this.iv.push({ phase: 'prep', dur: c.prep, label: 'Get ready' });
       if (c.mode === 'rounds') {
@@ -271,8 +271,8 @@
         }
       } else this.iv.push({ phase: 'box', dur: c.totalMin * 60, label: 'Continuous', round: 1 });
       this.total = this.iv.reduce((s, x) => s + x.dur, 0);
-      this.boxed = 0; this.combos = 0;
-      this.running = true; this.last = performance.now();
+      this.boxed = resume ? resume.boxed || 0 : 0; this.combos = resume ? resume.combos || 0 : 0;
+      this.running = true; this.last = performance.now(); this.lastSave = Date.now();
       this.el = $('#player'); this.el.hidden = false; this.el.className = 'player boxing';
       document.body.style.overflow = 'hidden';
       this.el.innerHTML = `
@@ -293,9 +293,15 @@
       $('#bPrev').onclick = () => this.jump(-1);
       this.hrOff = api.HRUI.bind($('#bHr'));
       if (global.HR) HR.startSession();
-      this.enter(0);
+      if (resume) {
+        this.enter(Math.min(resume.idx, this.iv.length - 1));
+        this.remain = Math.max(1, Math.min(this.remain, resume.remain));
+        this.renderTime(); this.toggle();
+        api.toast('Tap play to continue');
+      } else this.enter(0);
       this.wake();
       this.timer = setInterval(() => this.tick(), 100);
+      this.saveActive();
       // the phone drops the screen-on lock when you leave the app; take it back when you return
       if (!this.visHook) {
         this.visHook = true;
@@ -304,6 +310,14 @@
         });
       }
     },
+    // remember the session so it can be continued if the phone closes the app
+    saveActive() {
+      if (!this.iv || !this.api || this.el.hidden) return;
+      const left = this.total - (this.elapsedBefore + (this.iv[this.idx].dur - this.remain));
+      this.api.store.active = { kind: 'boxing', cfg: this.cfg, idx: this.idx, remain: Math.round(this.remain), boxed: Math.round(this.boxed), combos: this.combos, left: Math.round(left), savedAt: Date.now() };
+      this.api.save(); this.lastSave = Date.now();
+    },
+    clearActive() { if (this.api.store.active) { delete this.api.store.active; this.api.save(); } },
     async wake() { try { if ('wakeLock' in navigator) this.lock = await navigator.wakeLock.request('screen'); } catch (e) { /* not available */ } },
     enter(i) {
       const { Fx, S } = this.api;
@@ -371,6 +385,7 @@
       const { Fx, S } = this.api;
       const x = this.iv[this.idx];
       this.api.HRUI.check(dt);
+      if (Date.now() - this.lastSave > 5000) this.saveActive();
       this.remain -= dt;
       if (x.phase === 'box') {
         this.boxed += dt; this.sinceBurst += dt;
@@ -420,11 +435,13 @@
     },
     exit() {
       if (this.boxed > 30 && !confirm('Stop shadowboxing? Your time will be saved to history.')) return;
+      this.clearActive();
       this.record(false);
       this.close();
     },
     finish() {
       const { Fx, fmtMin, $ } = this.api;
+      this.clearActive();
       this.record(true);
       clearInterval(this.timer);
       Fx.say('Time! Great work.', true);
@@ -447,5 +464,5 @@
     },
   };
 
-  global.Boxing = { render, generateCombo, moveText, comboParts, LEVELS, DEFAULTS };
+  global.Boxing = { resume: (api, st) => Player.start(api, st), saveActive: () => Player.saveActive(), render, generateCombo, moveText, comboParts, LEVELS, DEFAULTS };
 })(window);

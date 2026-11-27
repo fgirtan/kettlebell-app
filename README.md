@@ -42,6 +42,21 @@ A Progressive Web App for kettlebell training. Install it on your phone's home s
 - **Swap any exercise** for another one from the same category; the order is recalculated.
 - **History** with total workouts, total minutes and your day streak, stored on the device.
 
+## Progress, backup and safety nets
+
+- **How did it feel?** After a kettlebell workout you rate it (too easy / just right / too hard) and set the
+  kettlebell weight. Generated workouts adapt: “too easy” adds 5 s of work and trims rest, “too hard” does the
+  opposite (Settings → Timing → *Adapt to my feedback*). Three easy ones in a row suggest the next level; two easy
+  ones with the same bell suggest a heavier one.
+- **History**: this week at a glance (days trained, weekly goal you set, weeks-in-a-row streak), workouts per week
+  for the last 8 weeks (tap a bar; also as a table), kettlebell weight, how workouts felt and average heart rate.
+- **Continue an interrupted workout**: if the phone closes the app mid-workout, a card offers to continue exactly
+  where you stopped (kettlebell, own workouts, recovery and boxing).
+- **Backup**: Settings → Data → *Export backup* saves history, own workouts and settings to one file (share sheet
+  on iPhone → Files/iCloud); *Import backup* restores it on any phone. Own videos/photos are not included.
+- **Exercise library**: versions of a move (single arm / alternating / two hands / two kettlebells) are one entry
+  with version chips on its page; ★ favorites and a *Recent* filter in the library and in the My workouts picker.
+
 ## Shadowboxing module
 
 A separate **Boxing** tab:

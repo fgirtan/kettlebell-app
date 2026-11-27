@@ -156,10 +156,41 @@ async function waitDone(p, maxMs) {
     for (const f of ['lower', 'upper', 'core', 'full']) { await p.tap(`#focus [data-f=${f}]`); await W(p, 150); }
     for (const l of [3, 2, 1]) { await p.tap(`#lvl [data-l="${l}"]`); await W(p, 300); }
     await p.tap('#gen'); await W(p);
+    await p.tap('#preview .pv-block >> nth=1'); await W(p, 300);
     await p.tap('#preview .ex-item .icon-btn'); await W(p, 300);
     await p.tap('#preview .ex-item .info'); await W(p, 600); await p.tap('#shClose'); await W(p, 300);
     await p.tap('#saveAsMine'); await W(p, 600); await p.tap('#cwBack'); await W(p, 400);
     if (p._errs.length) bad('click-through errors: ' + p._errs.join(' | ')); else ok('clicked through every tab, setting, stepper, focus/level, swap, detail sheet, save-as-mine');
+    await p.context().close();
+  }
+  // G2. new settings + history goal + backup round trip
+  {
+    const p = await newPage(b);
+    await p.goto(URL); await W(p);
+    await p.tap('[data-tab=settings]'); await W(p);
+    for (const sel of ['#thumbs [data-v=photo]', '#thumbs [data-v=figure]', '#figView [data-v=side]', '#figView [data-v=angle]']) { const el = await p.$(sel); if (!el) bad('settings: missing ' + sel); else { await el.tap(); await W(p, 200); } }
+    // backup: export file, change data, import it back
+    await p.evaluate(() => { const s = JSON.parse(localStorage.getItem('kettlebell.v1')); s.history = [{ date: Date.now(), sec: 900, minutes: 15, focus: 'full', level: 1, ex: ['goblet'], done: true, kg: 10, feel: 2 }]; s.custom = [{ id: 'c1', name: 'Mine', items: [{ ex: 'goblet', sec: 40 }], rounds: 2 }]; localStorage.setItem('kettlebell.v1', JSON.stringify(s)); });
+    await p.reload(); await W(p); await p.tap('[data-tab=settings]'); await W(p);
+    const [dl] = await Promise.all([p.waitForEvent('download', { timeout: 5000 }).catch(() => null), p.tap('#bkExport')]);
+    const file = dl ? await dl.path() : null;
+    if (!file) bad('backup: no file was produced');
+    else {
+      await p.evaluate(() => { const s = JSON.parse(localStorage.getItem('kettlebell.v1')); s.history = []; s.custom = []; localStorage.setItem('kettlebell.v1', JSON.stringify(s)); });
+      await p.setInputFiles('#bkFile', file); await W(p, 1500);
+      const st = await p.evaluate(() => JSON.parse(localStorage.getItem('kettlebell.v1')));
+      if (st.history.length === 1 && st.custom.length === 1 && st.history[0].kg === 10) ok('backup: exported, wiped and restored (history + own workouts)');
+      else bad(`backup restore: history ${st.history.length}, custom ${st.custom && st.custom.length}`);
+    }
+    await p.tap('[data-tab=history]'); await W(p);
+    await p.tap('[data-goal="1"]'); await W(p, 300);
+    const goal = await p.evaluate(() => JSON.parse(localStorage.getItem('kettlebell.v1')).settings.weekGoal);
+    const week = await p.textContent('.week-card');
+    await p.tap('.wk-chart .wk >> nth=7'); await W(p, 200);
+    const tip = await p.textContent('.chart-tip');
+    if (goal === 4 && /1 of 4 workouts/.test(week) && /This week/.test(tip)) ok(`history: weekly goal ${goal}, "${week.match(/\d of \d workouts/)[0]}", chart tip "${tip}"`);
+    else bad(`history goal=${goal} week="${week}" tip="${tip}"`);
+    if (p._errs.length) bad('G2 errors: ' + p._errs.join(' | '));
     await p.context().close();
   }
   // H. data from older app versions must not crash
@@ -186,7 +217,7 @@ async function waitDone(p, maxMs) {
     await p.reload(); await W(p, 1500);
     const title = await p.textContent('#title').catch(() => null);
     await p.tap('#gen').catch(() => {}); await W(p, 500);
-    const gen = await p.$('#preview .ex-item');
+    const gen = await p.$('#preview .pv-block');
     if (title && gen) ok('starts and generates offline'); else bad(`offline: title=${title} preview=${!!gen}`);
     await p.context().close();
   }

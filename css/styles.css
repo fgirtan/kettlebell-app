@@ -6,6 +6,7 @@
   --text: #f2f3f5;
   --muted: #9aa1ad;
   --accent: #ff7a1a;
+  --chart: #f26b10;
   --accent-ink: #1a0d00;
   --good: #3ecf8e;
   --rest: #4aa3ff;
@@ -22,13 +23,13 @@
 @media (prefers-color-scheme: light) {
   :root:not([data-theme="dark"]) {
     --bg: #f5f5f3; --surface: #ffffff; --surface-2: #eeeeeb; --line: #dcdcd7;
-    --text: #17181b; --muted: #636873; --accent: #e8590c; --accent-ink: #fff;
+    --text: #17181b; --muted: #636873; --accent: #e8590c; --accent-ink: #fff; --chart: #e8590c;
     --fig: #1d2026; --fig-far: #a3a8b1; --kb: #e8590c; color-scheme: light;
   }
 }
 :root[data-theme="light"] {
   --bg: #f5f5f3; --surface: #ffffff; --surface-2: #eeeeeb; --line: #dcdcd7;
-  --text: #17181b; --muted: #636873; --accent: #e8590c; --accent-ink: #fff;
+  --text: #17181b; --muted: #636873; --accent: #e8590c; --accent-ink: #fff; --chart: #e8590c;
   --fig: #1d2026; --fig-far: #a3a8b1; --kb: #e8590c; color-scheme: light;
 }
 
@@ -198,7 +199,7 @@ input[type=range] { width: 100%; accent-color: var(--accent); }
 .p-controls button.main { width: 78px; height: 78px; background: var(--accent); border: 0; color: var(--accent-ink); }
 .p-controls svg { width: 26px; height: 26px; fill: currentColor; }
 .p-done { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; gap: 12px; }
-.p-done .big { font-size: 56px; }
+.p-done div.big { font-size: 56px; }
 .p-done h2 { font-size: 28px; }
 
 /* ---------- History ---------- */
@@ -301,3 +302,52 @@ input[type=range] { width: 100%; accent-color: var(--accent); }
 .tag.back0 { color: #3ecf8e; } .tag.back1 { color: #f5c542; } .tag.back2 { color: #ff6b6b; }
 
 .sheet.stacked { z-index: 25; }
+
+/* after-workout feedback */
+.feedback { width: 100%; max-width: 400px; margin: 4px auto 18px; text-align: left; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px; }
+.feedback .seg button { font-size: 13px; padding-left: 4px; padding-right: 4px; }
+.resume-card { border-color: var(--accent); }
+
+/* generated workout: collapsible blocks */
+.how { margin: 6px 0 10px; }
+.how summary { font-size: 13px; font-weight: 600; color: var(--muted); cursor: pointer; padding: 6px 2px; list-style: none; }
+.how summary::before { content: "ⓘ "; color: var(--accent); }
+.how p { margin: 4px 2px 6px; }
+.pv-block { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); margin: 8px 0; }
+.pv-block > summary { list-style: none; cursor: pointer; padding: 12px 40px 12px 14px; position: relative; }
+.pv-block > summary::-webkit-details-marker, .how summary::-webkit-details-marker { display: none; }
+.pv-block > summary::after { content: ""; position: absolute; right: 16px; top: 18px; width: 8px; height: 8px; border-right: 2px solid var(--muted); border-bottom: 2px solid var(--muted); transform: rotate(45deg); transition: transform .2s; }
+.pv-block[open] > summary::after { transform: rotate(-135deg); top: 22px; }
+.pv-head { display: flex; flex-direction: column; gap: 2px; }
+.pv-names { margin-top: 6px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.pv-block[open] .pv-names { display: none; }
+.pv-block > .ex-list { padding: 0 10px 10px; }
+.pv-block + .rest-row { margin: 0 24px; }
+
+/* favorites + versions */
+.fav-btn { font-size: 20px; color: var(--muted); }
+.fav-btn.on { color: var(--accent); }
+.fav-star { color: var(--accent); font-size: 13px; }
+.chips.vers .chip { font-size: 13px; }
+
+/* history: week card + chart */
+.week-card .goal-bar { height: 8px; background: var(--surface-2); border-radius: 99px; margin: 12px 0; overflow: hidden; }
+.week-card .goal-bar i { display: block; height: 100%; background: var(--accent); border-radius: 99px; }
+.week-days { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; }
+.week-days div { aspect-ratio: 1; max-width: 40px; margin: 0 auto; width: 100%; border-radius: 50%; background: var(--surface-2); display: grid; place-items: center; font-size: 12px; font-weight: 700; color: var(--muted); }
+.week-days div.on { background: var(--accent); color: var(--accent-ink); }
+.week-days div.today { box-shadow: 0 0 0 2px var(--text) inset; }
+.week-days div.on.today { box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--accent); }
+.chart-wrap { position: relative; }
+.wk-chart { width: 100%; height: auto; display: block; }
+.wk-chart .bar { fill: var(--chart); }
+.wk-chart .wk.sel .bar { fill: var(--accent); stroke: var(--text); stroke-width: 1; }
+.wk-chart .grid { stroke: var(--line); stroke-width: 1; }
+.wk-chart .goal { stroke: var(--text); stroke-width: 1.5; stroke-dasharray: 4 4; opacity: .7; }
+.wk-chart text { font-size: 10px; fill: var(--muted); font-family: inherit; }
+.wk-chart .goal-t { fill: var(--text); font-weight: 600; }
+.wk-chart .val { fill: var(--text); font-weight: 700; font-size: 11px; }
+.chart-tip { position: absolute; top: 0; width: 150px; background: var(--text); color: var(--bg); font-size: 12px; padding: 6px 8px; border-radius: 8px; pointer-events: none; }
+.wk-table { width: 100%; font-size: 13px; border-collapse: collapse; margin-top: 6px; }
+.wk-table th, .wk-table td { text-align: left; padding: 4px 2px; border-bottom: 1px solid var(--line); }
+.stats.prog > div span { font-size: 11px; }

@@ -21,7 +21,7 @@ const { chromium, devices } = require('playwright');
   const count = await p.textContent('#pkCount');
   await p.tap('#pkDone'); await p.waitForTimeout(400);
   console.log({ rows: n, showMore: more, scrollBefore: before, scrollAfter: after, picked, count, errs });
-  const okAll = n === 518 && !more && Math.abs(before - after) < 2 && before > 1000 && picked && /2 added/.test(count) && !errs.length;
+  const okAll = n > 300 && !more && Math.abs(before - after) < 2 && before > 1000 && picked && /2 added/.test(count) && !errs.length;
   console.log(okAll ? 'picker OK' : 'picker PROBLEM');
   process.exitCode = okAll ? 0 : 1;
   await b.close();

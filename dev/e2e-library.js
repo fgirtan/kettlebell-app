@@ -1,0 +1,41 @@
+// Library: versions grouped into one row, version chips in the pop-up, favorites + favorites filter, picker adds a chosen version
+const { chromium, devices } = require('playwright');
+const SHOT = process.argv[2];
+(async () => {
+  const b = await chromium.launch(); const c = await b.newContext({ ...devices['iPhone 13'], serviceWorkers: 'block', colorScheme: 'dark' });
+  const p = await c.newPage(); const errs = []; p.on('pageerror', (e) => errs.push(e.message));
+  const out = []; let fail = 0; const check = (ok, m) => { out.push((ok ? '✓ ' : '✗ ') + m); if (!ok) fail++; };
+  await p.goto('http://localhost:8765/'); await p.waitForTimeout(600);
+  await p.tap('[data-tab=library]'); await p.waitForTimeout(600);
+  await p.fill('.search', 'hammer curl'); await p.waitForTimeout(500);
+  const rows = await p.$$eval('#libList .ex-item', (r) => r.map((x) => x.querySelector('.name').textContent + ' | ' + x.querySelector('.meta').textContent));
+  check(rows.length === 1 && /4 versions/.test(rows[0]), `one row for all Hammer Curl versions: ${JSON.stringify(rows)}`);
+  await p.tap('#libList .ex-item .info'); await p.waitForTimeout(700);
+  const chips = await p.$$eval('#sheet [data-ver]', (b) => b.map((x) => x.textContent));
+  check(chips.length === 4, `version chips: ${chips.join(', ')}`);
+  await p.tap('#sheet [data-ver]:nth-child(3)'); await p.waitForTimeout(600);
+  const title = await p.textContent('#sheet h2');
+  check(/Hammer Curl \(/.test(title), `switching version shows "${title}"`);
+  await p.tap('#shFav'); await p.waitForTimeout(300);
+  if (SHOT) await p.screenshot({ path: SHOT });
+  await p.tap('#shClose'); await p.waitForTimeout(300);
+  await p.fill('.search', ''); await p.waitForTimeout(300);
+  await p.tap('#libFilters [data-f=fav]'); await p.waitForTimeout(500);
+  const favRows = await p.$$eval('#libList .ex-item .name', (r) => r.map((x) => x.textContent));
+  check(favRows.length === 1 && /Hammer Curl/.test(favRows[0]) && favRows[0].includes('★'), `favorites filter: ${JSON.stringify(favRows)}`);
+  await p.tap('#libFilters [data-f=fav]'); await p.waitForTimeout(300);
+  // picker: pick a specific version from the pop-up
+  await p.tap('[data-tab=home]'); await p.waitForTimeout(300);
+  await p.tap('#kbMode [data-v=custom]'); await p.waitForTimeout(400); await p.tap('#cwNew'); await p.waitForTimeout(400);
+  await p.tap('#cwAdd'); await p.waitForTimeout(700);
+  await p.fill('#sheet .search', 'hammer curl'); await p.waitForTimeout(500);
+  await p.tap('#pkList .ex-item .info'); await p.waitForTimeout(600);
+  await p.tap('#sheet2 [data-ver]:nth-child(4)'); await p.waitForTimeout(500);
+  const want = await p.textContent('#sheet2 h2');
+  await p.tap('#shAdd'); await p.waitForTimeout(400);
+  await p.tap('#pkDone'); await p.waitForTimeout(500);
+  const items = await p.evaluate(() => document.querySelector('#view').innerText);
+  check(items.includes(want), `picker added the chosen version "${want}"`);
+  check(!errs.length, 'no page errors ' + errs.join(' | '));
+  console.log(out.join('\n')); process.exitCode = fail ? 1 : 0; await b.close();
+})();

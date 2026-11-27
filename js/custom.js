@@ -145,20 +145,21 @@
       const q = pickerQuery.trim().toLowerCase();
       const fb = $('#pkFilters', sh); fb.innerHTML = ''; fb.appendChild(api.filterBar(S.pickFilters, draw));
       const items = EXERCISES.filter((e) => (pickerCat === 'all' || e.cat === pickerCat) && api.passFilters(e, S.pickFilters) && (!q || [e.name, e.muscles.join(' ')].join(' ').toLowerCase().includes(q)));
-      const count = () => { $('#pkCount', sh).textContent = `${items.length} exercises · tap + to add${added ? ` · ${added} added` : ''}`; };
+      const groups = api.groupVersions(items);
+      const count = () => { $('#pkCount', sh).textContent = `${groups.length} exercises · tap + to add${added ? ` · ${added} added` : ''}`; };
       count();
       const box = $('#pkList', sh); box.innerHTML = '';
-      api.batchList(box, items, (e) => {
-        // adding only marks this row, so the list keeps its place
-        const add = () => { editing.items.push({ ex: e.id, sec: S.timing.work }); added++; toast(`Added ${e.name}`); row.classList.add('picked'); count(); };
-        const row = api.exItem(e.id, undefined, { onSwap: add });
-        // only the + button adds; tapping the picture or name shows the animation and how-to
+      api.batchList(box, groups, (g) => {
+        const e = g.e, vers = api.versionsOf(e);
+        // adding only marks this row, so the list keeps its place; the pop-up lets you pick another version
+        const add = (id) => { id = id || e.id; editing.items.push({ ex: id, sec: S.timing.work }); added++; toast(`Added ${EXERCISES.find((x) => x.id === id).name}`); row.classList.add('picked'); count(); };
+        const row = api.exItem(e.id, undefined, { onSwap: () => add(), versions: g.n });
+        // only the + button adds; tapping the picture or name shows the animation, how-to and versions
         const info = () => api.openSheet(e.id, { stacked: true, onAdd: add });
         row.querySelector('.info').onclick = info; row.querySelector('.thumb').onclick = info;
         const btn = row.querySelector('.icon-btn:last-child');
         if (btn) { btn.innerHTML = ICON.plus.replace('<svg', '<svg fill="none" stroke="currentColor" stroke-width="2.4"'); btn.setAttribute('aria-label', 'Add'); }
-        const n = editing.items.filter((it) => it.ex === e.id).length;
-        if (n) row.classList.add('picked');
+        if (editing.items.some((it) => vers.some((v) => v.id === it.ex))) row.classList.add('picked');
         return row;
       });
     };

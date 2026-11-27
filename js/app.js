@@ -16,10 +16,10 @@
   };
 
   // ---------- Storage ----------
-  const APP_VERSION = '2026.11.27 (v27)';
+  const APP_VERSION = '2026.11.27 (v28)';
   const KEY = 'kettlebell.v1';
   const DEFAULTS = {
-    settings: { minutes: 30, level: 1, focus: 'full', sound: true, voice: true, vibrate: true, theme: 'auto', voiceName: '', voiceRate: 1, voiceVol: 1, prepCue: 'ticks', silentMode: true, voiceEngine: 'clips', clipVoice: 'm', visual: 'photo', figView: 'angle', backSafe: true, lowFloor: true, twoBells: false, hrAge: 40, hrWarn: true, hrWarnPct: 85 },
+    settings: { minutes: 30, level: 1, focus: 'full', sound: true, voice: true, vibrate: true, theme: 'auto', voiceName: '', voiceRate: 1, voiceVol: 1, prepCue: 'ticks', silentMode: true, voiceEngine: 'clips', clipVoice: 'm', visual: 'photo', figView: 'angle', backSafe: true, lowFloor: true, twoBells: false, hrAge: 40, hrWarn: true, hrWarnPct: 85, kbKg: 8, autoAdjust: true, weekGoal: 3, thumbs: 'figure', favs: [] },
     plan: null,
     history: [],
   };
@@ -97,6 +97,7 @@
   const TITLES = { home: 'Kettlebell', boxing: 'Shadowboxing', recovery: 'Recovery', library: 'Exercises', history: 'History', settings: 'Settings' };
 
   function render() {
+    setTimeout(() => { const v = $('#view'); if (!v || !$('#player').hidden || v.querySelector('.resume-card')) return; const c = resumeCard(); if (c) v.prepend(c); }, 0);
     $$('.tabs button').forEach((b) => b.classList.toggle('active', b.dataset.tab === tab));
     $('#title').textContent = TITLES[tab];
     const v = $('#view');
@@ -231,6 +232,7 @@
     };
 
     $('#gen').onclick = () => {
+      previewOpen.clear();
       store.plan = Generator.generate({ minutes: S.minutes, level: S.level, focus: S.focus, backSafe: S.backSafe !== false, lowFloor: S.lowFloor !== false, twoBells: !!S.twoBells, timing: S.timing, recent: recentIds() });
       store.recent.push(store.plan.main.concat(store.plan.warm, store.plan.cool));
       store.recent = store.recent.slice(-3);
@@ -250,8 +252,9 @@
     const d = document.createElement('div');
     d.className = 'ex-item';
     d.innerHTML = `${idx !== undefined ? `<div class="num">${idx}</div>` : ''}<div class="thumb"></div>
-      <div class="info"><div class="name">${e.name}</div><div class="meta">${regionTag(e)}${e.eq === 2 ? '<span class="tag">2 bells</span>' : ''}${e.muscles.slice(0, 3).join(', ')}${sideNote(e)}</div></div>`;
-    const pk = photoKey(id);
+      <div class="info"><div class="name">${opts && opts.versions > 1 ? esc(e.name.replace(/\s*\([^)]*\)\s*$/, '')) : e.name}${isFav(e) ? ' <span class="fav-star">★</span>' : ''}</div><div class="meta">${regionTag(e)}${opts && opts.versions > 1 ? `<span class="tag">${opts.versions} versions</span>` : e.eq === 2 ? '<span class="tag">2 bells</span>' : ''}${e.muscles.slice(0, 3).join(', ')}${opts && opts.versions > 1 ? '' : sideNote(e)}</div></div>`;
+    // list pictures: the same animated figure everywhere unless you prefer the real photos
+    const pk = S.thumbs === 'photo' ? photoKey(id) : null;
     const own = Media.element(id, { still: true });
     if (own) d.querySelector('.thumb').appendChild(own);
     else if (pk) d.querySelector('.thumb').appendChild(photoEl(pk, true));
@@ -266,6 +269,8 @@
     return d;
   }
 
+  // Generated workout preview: a short summary, then collapsible blocks (one per stretch between rests)
+  const previewOpen = new Set();
   function renderPreview(root, plan) {
     const iv = Generator.buildIntervals(plan);
     const total = iv.reduce((s, x) => s + x.dur, 0);
@@ -273,44 +278,47 @@
     const nEx = plan.main.length;
     const nUnique = new Set(plan.main).size;
     const t = plan.timing;
+    const G = (id) => Generator.GROUP_LABEL[Generator.groupOf(EX[id])] || '';
+    // split the main part where the rests fall
+    const blocks = [];
+    for (let i = 0; i < plan.main.length; i += t.restEvery) blocks.push(plan.main.slice(i, i + t.restEvery).map((id, k) => [id, i + k]));
+    const secOf = (phase) => iv.filter((x) => x.phase === phase).reduce((s, x) => s + x.dur, 0);
     root.innerHTML = `
       <div style="height:18px"></div>
       <div class="summary">
         <div><b>${fmtMin(total)}</b><span>total</span></div>
-        <div><b>${fmtMin(workSec)}</b><span>work</span></div>
-        <div><b>${nEx}</b><span>${nUnique < nEx ? nUnique + ' different' : 'all different'}</span></div>
+        <div><b>${nEx}</b><span>${nUnique < nEx ? nUnique + ' different' : 'exercises'}</span></div>
+        <div><b>${blocks.length}</b><span>block${blocks.length > 1 ? 's' : ''} · rest ${t.rest}s</span></div>
       </div>
-      <button class="btn ghost block" id="saveAsMine" style="margin-bottom:12px">☆ Save as my workout</button>
-      <div class="flow-note">One continuous run of exercises in a natural order: legs → press → hips → back → core, then again with new moves. Each area rests before it's used again${plan.backSafe !== false ? ', and two moves that load the lower back never come one after the other' : ''}. It starts with controlled basics, builds up, and ends calmer on the floor. A ${t.rest}s rest comes after every ${t.restEvery} exercises; tap <b>Rest 30s</b> any time, and <b>Skip</b> swaps an exercise without shortening the workout.</div>
+      <details class="how"><summary>Order: legs → hips → core → back → shoulders → arms → total body, then again with new moves</summary>
+        <p class="small muted">The same muscle group never comes twice in a row, and every area rests before it's used again${plan.backSafe !== false ? '; two moves that load the lower back never follow each other' : ''}. It opens with simple two-sided lifts, builds up, and ends calmer. ${fmtMin(workSec)} of work in total. During the workout, <b>Skip</b> swaps to a move for another muscle group without shortening the time; <b>Rest 30s</b> adds a short break.</p></details>
+      <button class="btn ghost block" id="saveAsMine" style="margin:4px 0 14px">☆ Save as my workout</button>
+      <div id="pvBlocks"></div>
     `;
-    const head = (title, sub) => { const h = document.createElement('div'); h.className = 'block-head'; h.innerHTML = `<h3>${title}</h3><span class="small muted">${sub}</span>`; root.appendChild(h); };
-    const list = () => { const l = document.createElement('div'); l.className = 'ex-list'; root.appendChild(l); return l; };
     const sam = root.querySelector('#saveAsMine');
     if (sam) sam.onclick = () => { Custom.fromPlan(plan, api()); S.kbMode = 'custom'; save(); render(); window.scrollTo(0, 0); toast('Edit it and tap Save'); };
-
-    if (plan.warm.length) {
-      head('Warm-up', `${plan.warm.length} moves · ${fmtMin(iv.filter((x) => x.phase === 'warmup').reduce((s, x) => s + x.dur, 0))}`);
-      const l = list(); plan.warm.forEach((id) => l.appendChild(exItem(id)));
-    }
-
-    head('Workout', `${plan.main.length} exercises · ${t.work}s each`);
-    const ml = list();
-    let since = 0;
-    plan.main.forEach((id, i) => {
-      ml.appendChild(exItem(id, i + 1, {
-        onSwap: () => { Generator.swap(plan, i, recentIds()); save(); renderPreview(root, plan); toast('Exercise swapped'); },
-      }));
-      since++;
-      if (since >= t.restEvery && i < plan.main.length - 1) {
-        since = 0;
-        if (t.rest > 0) { const r = document.createElement('div'); r.className = 'rest-row'; r.textContent = `Rest · ${t.rest}s`; ml.appendChild(r); }
-      }
+    const box = root.querySelector('#pvBlocks');
+    const block = (key, title, sub, ids, rows) => {
+      const d = document.createElement('details'); d.className = 'pv-block';
+      d.open = previewOpen.has(key);
+      d.innerHTML = `<summary><div class="pv-head"><b>${title}</b><span class="small muted">${sub}</span></div>
+        <div class="pv-names small muted">${ids.map((id) => esc(EX[id].name)).join(' · ')}</div></summary>`;
+      const list = document.createElement('div'); list.className = 'ex-list'; d.appendChild(list);
+      let filled = false;
+      const fill = () => { if (filled) return; filled = true; rows(list); };
+      if (d.open) fill();
+      d.addEventListener('toggle', () => { if (d.open) { previewOpen.add(key); fill(); } else previewOpen.delete(key); });
+      box.appendChild(d);
+    };
+    if (plan.warm.length) block('warm', 'Warm-up', `${plan.warm.length} moves · ${fmtMin(secOf('warmup'))}`, plan.warm, (l) => plan.warm.forEach((id) => l.appendChild(exItem(id))));
+    blocks.forEach((bl, k) => {
+      const ids = bl.map(([id]) => id);
+      block('b' + k, `Block ${k + 1}`, `${ids.length} exercises · ${ids.map(G).join(' → ')}`, ids, (l) => bl.forEach(([id, i]) => l.appendChild(exItem(id, i + 1, {
+        onSwap: () => { Generator.swap(plan, i, recentIds()); save(); previewOpen.add('b' + k); renderPreview(root, plan); toast('Exercise swapped'); },
+      }))));
+      if (k < blocks.length - 1 && t.rest > 0) { const r = document.createElement('div'); r.className = 'rest-row'; r.textContent = `Rest · ${t.rest}s`; box.appendChild(r); }
     });
-
-    if (plan.cool.length) {
-      head('Cool-down', `${plan.cool.length} stretches · ${fmtMin(iv.filter((x) => x.phase === 'cooldown').reduce((s, x) => s + x.dur, 0))}`);
-      const l = list(); plan.cool.forEach((id) => l.appendChild(exItem(id)));
-    }
+    if (plan.cool.length) block('cool', 'Cool-down', `${plan.cool.length} stretches · ${fmtMin(secOf('cooldown'))}`, plan.cool, (l) => plan.cool.forEach((id) => l.appendChild(exItem(id))));
 
     const st = document.createElement('div');
     st.className = 'sticky-start';
@@ -330,11 +338,12 @@
     }
     sh.innerHTML = `<div class="sheet-body" role="dialog" aria-label="${e.name}">
       <div class="grab"></div>
-      <div class="row" style="justify-content:flex-end"><button class="icon-btn" id="shClose" aria-label="Close">${ICON.close}</button></div>
+      <div class="row"><button class="icon-btn fav-btn ${isFav(e) ? 'on' : ''}" id="shFav" aria-label="Favorite">${(S.favs || []).includes(id) ? '★' : '☆'}</button><div class="spacer"></div><button class="icon-btn" id="shClose" aria-label="Close">${ICON.close}</button></div>
       <div class="stage"></div>
       ${self.PHOTOS && self.PHOTOS[id] ? `<div class="seg mini" id="visSeg" style="max-width:260px;margin:0 auto 10px">${[['photo', 'Real photos'], ['figure', 'Animation']].map(([v, l]) => `<button data-v="${v}" class="${(S.visual === 'figure' ? 'figure' : 'photo') === v ? 'on' : ''}">${l}</button>`).join('')}</div>` : ''}
       <div class="seg mini" id="viewSeg" style="max-width:220px;margin:0 auto 10px">${[['angle', '3/4 view'], ['side', 'Side view']].map(([v, l]) => `<button data-v="${v}" class="${S.figView === v ? 'on' : ''}">${l}</button>`).join('')}</div>
       <h2>${e.name}</h2>
+      ${versionsOf(e).length > 1 ? `<div class="chips vers" style="margin-top:8px">${versionsOf(e).map((v) => `<button class="chip ${v.id === id ? 'on' : ''}" data-ver="${v.id}">${vLabel(v)}</button>`).join('')}</div>` : ''}
       <p style="margin:10px 0 4px">${regionTag(e)}<span class="tag">${CAT_LABEL[e.cat]}</span><span class="tag">${LEVEL_LABEL[e.level]}</span>${e.uni ? '<span class="tag">each side</span>' : ''}${e.alt ? '<span class="tag">alternating</span>' : ''}${e.floor ? '<span class="tag">on the floor</span>' : ''}${e.bw ? '<span class="tag">bodyweight</span>' : ''}${e.eq === 2 ? '<span class="tag">2 kettlebells</span>' : ''}<span class="tag back${backOf(e)}">Back load: ${['low', 'moderate', 'high'][backOf(e)]}</span></p>
       ${e.lib ? '<p class="small muted" style="margin:4px 0 0">From the Caveman Kettlebells exercise list · animation shows the closest basic movement – tap ▶ Watch real demo for the exact variation.</p>' : ''}
       <p class="small muted" style="margin:6px 0 0">Muscles: ${e.muscles.join(', ')}</p>
@@ -369,7 +378,18 @@
       return true;
     };
     if (!showOwn()) showVis(S.visual === 'figure' ? 'figure' : 'photo');
-    const addB = $('#shAdd', sh); if (addB) addB.onclick = () => { opts.onAdd(); close(); };
+    const addB = $('#shAdd', sh); if (addB) addB.onclick = () => { opts.onAdd(id); close(); };
+    $$('[data-ver]', sh).forEach((b) => (b.onclick = () => { if (b.dataset.ver !== id) { Figure.stop(svg); openSheet(b.dataset.ver, opts); } }));
+    $('#shFav', sh).onclick = () => {
+      S.favs = S.favs || [];
+      const k = S.favs.indexOf(id);
+      if (k >= 0) S.favs.splice(k, 1); else S.favs.push(id);
+      save();
+      const on = S.favs.includes(id);
+      $('#shFav', sh).textContent = on ? '★' : '☆'; $('#shFav', sh).classList.toggle('on', on);
+      toast(on ? 'Added to favorites' : 'Removed from favorites');
+      if (!stacked && tab === 'library') sh._dirty = true;
+    };
     $('#watchDemo', sh).onclick = () => {
       const q = e.cat === 'recovery' || e.cat === 'stretch' || e.cat === 'warmup' ? `${e.name} how to` : `${e.name} kettlebell exercise technique`;
       window.open('https://www.youtube.com/results?search_query=' + encodeURIComponent(q), '_blank', 'noopener');
@@ -391,7 +411,7 @@
       $$('#viewSeg button', sh).forEach((x) => x.classList.toggle('on', x === b)); showVis(curMode);
     }));
     sh.hidden = false;
-    const close = () => { Figure.stop(svg); sh.hidden = true; sh.innerHTML = ''; if (opts && opts.onClose) opts.onClose(); };
+    const close = () => { Figure.stop(svg); sh.hidden = true; sh.innerHTML = ''; if (opts && opts.onClose) opts.onClose(); if (sh._dirty) { sh._dirty = false; if (S.libFilters && S.libFilters.fav) render(); } };
     $('#shClose').onclick = close;
     sh.onclick = (ev) => { if (ev.target === sh) close(); };
   }
@@ -399,7 +419,29 @@
   // ---------- Exercise filters (library + custom picker) ----------
   const isFloorEx = (e) => !!e.floor || ['pushup', 'plankRow', 'plankDrag', 'plank', 'russianTwist', 'vsit', 'tgu', 'birdDog', 'floorPress', 'floorPress2', 'pullover', 'skull', 'situp', 'crunch', 'deadbug', 'hollow', 'legRaise', 'bridge', 'bridge1', 'deadbugPull', 'halfKneelPress', 'haloKneel'].includes(e.anim) || ['s_child', 's_cobra', 's_seated', 's_knees', 's_dog', 's_hipflex', 'w_inch', 'w_birddog', 'w_bridge'].includes(e.id);
   const backOf = (e) => (e.back !== undefined ? e.back : (Generator.BACK[e.id] || 0));
-  const FILTERS = [['one', '1 kettlebell', (e) => e.eq !== 2], ['stand', 'Standing', (e) => !isFloorEx(e)], ['back', 'Back-friendly', (e) => backOf(e) < 2], ['easy', 'Beginner', (e) => e.level === 1]];
+  // Versions of one move (single arm / alternating / two hands / two kettlebells) are shown as one entry
+  const vKey = (e) => e.name.replace(/\s*\([^)]*\)\s*$/, '').toLowerCase();
+  const VERS = {};
+  EXERCISES.forEach((e) => (VERS[vKey(e)] = VERS[vKey(e)] || []).push(e));
+  const versionsOf = (e) => VERS[vKey(e)] || [e];
+  const vLabel = (e) => { const m = e.name.match(/\(([^)]*)\)\s*$/); return m ? m[1][0].toUpperCase() + m[1].slice(1) : 'Standard'; };
+  function groupVersions(items) {
+    const m = new Map();
+    for (const e of items) { const k = vKey(e); if (!m.has(k)) m.set(k, { e, n: versionsOf(e).length }); }
+    return [...m.values()];
+  }
+  const isFav = (e) => (S.favs || []).some((id) => versionsOf(e).some((v) => v.id === id));
+  // exercises from your own workouts and the last sessions
+  let recentCache = null;
+  function recentSet() {
+    if (recentCache && Date.now() - recentCache.t < 2000) return recentCache.s;
+    const ids = new Set();
+    (store.custom || []).forEach((w) => (w.items || []).forEach((it) => ids.add(it.ex)));
+    store.history.slice(-15).forEach((h) => (h.ex || []).forEach((id) => ids.add(id)));
+    recentCache = { t: Date.now(), s: ids };
+    return ids;
+  }
+  const FILTERS = [['fav', '★ Favorites', (e) => isFav(e)], ['recent', 'Recent', (e) => versionsOf(e).some((v) => recentSet().has(v.id))], ['one', '1 kettlebell', (e) => e.eq !== 2], ['stand', 'Standing', (e) => !isFloorEx(e)], ['back', 'Back-friendly', (e) => backOf(e) < 2], ['easy', 'Beginner', (e) => e.level === 1]];
   function filterBar(state, onChange) {
     const d = document.createElement('div');
     d.className = 'chips filters';
@@ -428,7 +470,7 @@
   function renderLibrary(v) {
     const cats = ['all', 'ballistic', 'squat', 'hinge', 'lunge', 'push', 'pull', 'arms', 'core', 'total', 'flow', 'juggling', 'warmup', 'stretch', 'recovery'];
     S.libFilters = S.libFilters || {};
-    v.innerHTML = `<input class="search" type="search" placeholder="Search ${EXERCISES.length} exercises or a muscle…" value="${libQuery}">
+    v.innerHTML = `<input class="search" type="search" placeholder="Search exercises or a muscle…" value="${libQuery}">
       <div class="chips">${cats.map((c) => `<button class="chip ${c === libCat ? 'on' : ''}" data-c="${c}">${c === 'all' ? 'All' : CAT_LABEL[c]}</button>`).join('')}</div>
       <div id="libFilters"></div>
       <div class="lib-count"></div><div class="ex-list" id="libList"></div>`;
@@ -437,9 +479,10 @@
       const q = libQuery.trim().toLowerCase();
       const items = EXERCISES.filter((e) => (libCat === 'all' || e.cat === libCat) && passFilters(e, S.libFilters) &&
         (!q || [e.name, e.muscles.join(' '), CAT_LABEL[e.cat]].join(' ').toLowerCase().includes(q)));
-      $('.lib-count').textContent = `${items.length} exercises`;
+      const groups = groupVersions(items);
+      $('.lib-count').textContent = `${groups.length} exercises${groups.length < items.length ? ` · ${items.length} with all versions` : ''}`;
       const list = $('#libList'); list.innerHTML = '';
-      batchList(list, items, (e) => exItem(e.id));
+      batchList(list, groups, (g) => exItem(g.e.id, undefined, { versions: g.n }));
     };
     $('.search').oninput = (e) => { libQuery = e.target.value; draw(); };
     $$('.chip[data-c]').forEach((c) => (c.onclick = () => { libCat = c.dataset.c; $$('.chip[data-c]').forEach((x) => x.classList.toggle('on', x === c)); draw(); }));
@@ -447,6 +490,30 @@
   }
 
   // ---------- History ----------
+  // week starts on Monday
+  const weekStart = (t) => { const d = new Date(t); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() - ((d.getDay() + 6) % 7)); return d.getTime(); };
+  const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  function weeksChart(h, goal) {
+    const now = weekStart(Date.now());
+    const weeks = Array.from({ length: 8 }, (_, i) => { const t = new Date(now); t.setDate(t.getDate() - 7 * (7 - i)); return { t: t.getTime(), n: 0, sec: 0 }; });
+    for (const x of h) { const w = weeks.find((k) => k.t === weekStart(x.date)); if (w) { w.n++; w.sec += x.sec; } }
+    const W = 340, H = 150, L = 22, B = 22, T = 14, top = Math.max(goal, ...weeks.map((w) => w.n), 1);
+    const y = (v) => T + (H - T - B) * (1 - v / top), bw = (W - L) / 8;
+    const ticks = [...new Set([0, Math.round(top / 2), top])];
+    const bars = weeks.map((w, i) => {
+      const x = L + i * bw + bw * 0.22, wd = bw * 0.56, y0 = y(0), y1 = y(w.n), r = Math.min(4, (y0 - y1) / 2);
+      const d = w.n ? `M${x},${y0} V${y1 + r} Q${x},${y1} ${x + r},${y1} H${x + wd - r} Q${x + wd},${y1} ${x + wd},${y1 + r} V${y0} Z` : '';
+      const dt = new Date(w.t);
+      return `<g class="wk" data-i="${i}"><rect class="hit" x="${L + i * bw}" y="${T}" width="${bw}" height="${H - T}" fill="transparent"></rect>
+        ${d ? `<path class="bar" d="${d}"></path>` : ''}
+        ${i === 7 && w.n ? `<text class="val" x="${x + wd / 2}" y="${y1 - 4}" text-anchor="middle">${w.n}</text>` : ''}
+        <text class="ax" x="${x + wd / 2}" y="${H - 6}" text-anchor="middle">${i === 7 ? 'This wk' : `${dt.getDate()} ${MON[dt.getMonth()]}`}</text></g>`;
+    }).join('');
+    const grid = ticks.map((v) => `<line class="grid" x1="${L}" x2="${W}" y1="${y(v)}" y2="${y(v)}"></line><text class="ax" x="${L - 6}" y="${y(v) + 4}" text-anchor="end">${v}</text>`).join('');
+    const goalLine = `<line class="goal" x1="${L}" x2="${W}" y1="${y(goal)}" y2="${y(goal)}"></line>`;
+    return { svg: `<svg viewBox="0 0 ${W} ${H}" class="wk-chart" role="img" aria-label="Workouts per week, last 8 weeks">${grid}${goalLine}${bars}</svg>`, weeks };
+  }
+
   function renderHistory(v) {
     const h = store.history;
     const totalMin = Math.round(h.reduce((s, x) => s + x.sec, 0) / 60);
@@ -454,14 +521,60 @@
     let streak = 0; const d = new Date();
     if (!days.has(d.toDateString())) d.setDate(d.getDate() - 1);
     while (days.has(d.toDateString())) { streak++; d.setDate(d.getDate() - 1); }
-    const weekAgo = Date.now() - 7 * 864e5;
-    v.innerHTML = `<div class="stats">
+    const goal = S.weekGoal || 3;
+    const ws = weekStart(Date.now());
+    const thisWeek = h.filter((x) => x.date >= ws);
+    // weeks in a row that reached the goal (this week counts once it's reached)
+    const perWeek = (t) => h.filter((x) => weekStart(x.date) === t).length;
+    let wStreak = 0; let wt = ws;
+    if (perWeek(wt) < goal) wt -= 7 * 864e5;
+    while (perWeek(wt) >= goal && wStreak < 520) { wStreak++; const t = new Date(wt); t.setDate(t.getDate() - 7); wt = weekStart(t); }
+    const dayNames = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+    const today = (new Date().getDay() + 6) % 7;
+    const trained = new Set(thisWeek.map((x) => (new Date(x.date).getDay() + 6) % 7));
+    const chart = weeksChart(h, goal);
+    // kettlebell weight & how it felt
+    const kb = h.filter((x) => !x.type);
+    const kgs = kb.filter((x) => x.kg);
+    const felt = kb.slice(-10).filter((x) => x.feel);
+    const hrs = h.filter((x) => x.hr && x.hr.avg).slice(-5);
+    const prog = [];
+    if (kgs.length) prog.push(`<div><b>${kgs[kgs.length - 1].kg} kg</b><span>kettlebell now${kgs[0].kg !== kgs[kgs.length - 1].kg ? ` · started at ${kgs[0].kg} kg` : ''}</span></div>`);
+    if (felt.length) prog.push(`<div><b>${felt.filter((x) => x.feel === 2).length}/${felt.length}</b><span>felt just right · ${felt.filter((x) => x.feel === 1).length} easy · ${felt.filter((x) => x.feel === 3).length} hard</span></div>`);
+    if (hrs.length) prog.push(`<div><b>♥ ${Math.round(hrs.reduce((s, x) => s + x.hr.avg, 0) / hrs.length)}</b><span>average heart rate, last ${hrs.length}</span></div>`);
+    v.innerHTML = `<div class="card week-card">
+        <div class="row" style="align-items:center"><div style="flex:1"><p class="label" style="margin:0">This week</p>
+          <div style="font-weight:700;font-size:18px;margin-top:2px">${thisWeek.length} of ${goal} workouts${thisWeek.length >= goal ? ' ✓' : ''}</div></div>
+          <div class="stepper" aria-label="Weekly goal"><button class="icon-btn" data-goal="-1" aria-label="Lower goal">${ICON.minus}</button><b style="min-width:30px">${goal}</b><button class="icon-btn" data-goal="1" aria-label="Raise goal">${ICON.plus}</button></div></div>
+        <div class="goal-bar"><i style="width:${Math.min(100, (100 * thisWeek.length) / goal)}%"></i></div>
+        <div class="week-days">${dayNames.map((n, i) => `<div class="${trained.has(i) ? 'on' : ''} ${i === today ? 'today' : ''}"><span>${n}</span></div>`).join('')}</div>
+        <div class="small muted" style="margin-top:10px">${wStreak > 0 ? `🔥 ${wStreak} week${wStreak > 1 ? 's' : ''} in a row at your goal` : 'Reach your weekly goal to start a streak'}${streak > 1 ? ` · ${streak} days in a row` : ''}</div>
+      </div>
+      <div class="stats">
         <div><b>${h.length}</b><span>workouts</span></div>
         <div><b>${totalMin}</b><span>total minutes</span></div>
-        <div><b>${h.filter((x) => x.date > weekAgo).length}</b><span>last 7 days</span></div>
+        <div><b>${h.filter((x) => x.date > Date.now() - 7 * 864e5).length}</b><span>last 7 days</span></div>
       </div>
-      ${streak > 1 ? `<div class="flow-note">🔥 ${streak}-day streak. Keep it going!</div>` : ''}
+      ${h.length ? `<div class="card"><p class="label" style="margin:0 0 2px">Workouts per week · last 8 weeks</p><p class="small muted" style="margin:0 0 6px">Dashed line: your goal of ${goal} · tap a week for details</p>
+        <div class="chart-wrap">${chart.svg}<div class="chart-tip" hidden></div></div>
+        <details class="how"><summary>Show as table</summary><table class="wk-table"><tr><th>Week of</th><th>Workouts</th><th>Minutes</th></tr>${chart.weeks.map((w) => `<tr><td>${new Date(w.t).getDate()} ${MON[new Date(w.t).getMonth()]}</td><td>${w.n}</td><td>${Math.round(w.sec / 60)}</td></tr>`).join('')}</table></details></div>` : ''}
+      ${prog.length ? `<div class="stats prog">${prog.join('')}</div>` : ''}
       <div id="hl"></div>`;
+    $$('[data-goal]', v).forEach((b) => (b.onclick = () => { S.weekGoal = Math.max(1, Math.min(7, goal + +b.dataset.goal)); save(); render(); }));
+    // tap / hover a week to see its numbers
+    const tip = $('.chart-tip', v), wrap = $('.chart-wrap', v);
+    if (tip) $$('.wk', v).forEach((g) => {
+      const show = () => {
+        const w = chart.weeks[+g.dataset.i];
+        $$('.wk', v).forEach((x) => x.classList.toggle('sel', x === g));
+        tip.innerHTML = `<b>${+g.dataset.i === 7 ? 'This week' : `Week of ${new Date(w.t).getDate()} ${MON[new Date(w.t).getMonth()]}`}</b><br>${w.n} workout${w.n === 1 ? '' : 's'} · ${Math.round(w.sec / 60)} min`;
+        tip.hidden = false;
+        const r = g.getBoundingClientRect(), rw = wrap.getBoundingClientRect();
+        tip.style.left = `${Math.max(0, Math.min(rw.width - 150, r.left - rw.left + r.width / 2 - 75))}px`;
+      };
+      g.addEventListener('click', show); g.addEventListener('mouseenter', show);
+    });
+    if (wrap) wrap.addEventListener('mouseleave', () => { tip.hidden = true; $$('.wk', v).forEach((x) => x.classList.remove('sel')); });
     const hl = $('#hl');
     if (!h.length) { hl.innerHTML = '<div class="card muted">No workouts yet. Generate one and hit Start.</div>'; return; }
     const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -485,7 +598,7 @@
       }
       c.innerHTML = `<div class="date"><b>${dt.getDate()}</b><span>${MONTHS[dt.getMonth()]}</span></div>
         <div style="flex:1;min-width:0"><div style="font-weight:700">${fmtMin(x.sec)} · Kettlebell · ${x.name ? esc(x.name) : Generator.FOCUS_LABEL[x.focus] || ''}</div>
-        <div class="small muted">${LEVEL_LABEL[x.level]} · ${x.ex.length} exercises${x.done ? '' : ' · stopped early'}${x.hr ? ` · ♥ avg ${x.hr.avg} / max ${x.hr.max}` : ''}</div>
+        <div class="small muted">${LEVEL_LABEL[x.level]} · ${x.ex.length} exercises${x.kg ? ` · ${x.kg} kg` : ''}${x.feel ? ` · ${FEEL[x.feel].toLowerCase()}` : ''}${x.done ? '' : ' · stopped early'}${x.hr ? ` · ♥ avg ${x.hr.avg} / max ${x.hr.max}` : ''}</div>
         <div class="small muted" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${x.ex.map((id) => (EX[id] ? EX[id].name : id)).join(' · ')}</div></div>`;
       hl.appendChild(c);
     });
@@ -526,12 +639,16 @@
       </div>
       <div class="card"><p class="label">Exercise visuals</p>
         <div class="seg" id="visual">${[['photo', 'Real photos'], ['figure', 'Animation']].map(([k, l]) => `<button data-v="${k}" class="${(S.visual === 'figure' ? 'figure' : 'photo') === k ? 'on' : ''}">${l}</button>`).join('')}</div>
+        <p class="label" style="margin-top:14px">Pictures in lists</p>
+        <div class="seg" id="thumbs">${[['figure', 'Animated figure'], ['photo', 'Real photos']].map(([k, l]) => `<button data-v="${k}" class="${(S.thumbs === 'photo' ? 'photo' : 'figure') === k ? 'on' : ''}">${l}</button>`).join('')}</div>
+        <p class="small muted" style="margin:6px 2px 0">The figure keeps every list in one style; photos (where there is one) still show on the exercise page.</p>
         <p class="label" style="margin-top:14px">Animated figure angle</p>
         <div class="seg" id="figView">${[['angle', '3/4 front'], ['side', 'Side']].map(([k, l]) => `<button data-v="${k}" class="${S.figView === k ? 'on' : ''}">${l}</button>`).join('')}</div>
         <p class="small muted" style="margin:10px 2px 0">Real photos (start ⇄ end position) are shown for ${Object.keys(self.PHOTOS || {}).length} exercises; the others use the animated figure. Photos: free-exercise-db, public domain.</p>
         <p class="small muted" style="margin:8px 2px 0">You can add your own video or photo to any exercise from its page (＋ Add my video/photo); it then replaces the photo or animation everywhere, offline too. ${Media.count() ? `You have added ${Media.count()}.` : ''}</p>
       </div>
       <div class="card"><p class="label">Timing</p>
+        ${sw('autoAdjust', 'Adapt to my feedback', 'After a generated workout, “Too easy” adds 5 s of work and trims rest; “Too hard” does the opposite.')}
         <p class="small muted" style="margin:0">Work, rest, get-ready time, warm-up and cool-down are set on the Workout tab, under <b>Timing</b>.</p>
       </div>
       <div class="card"><p class="label">Theme</p>
@@ -548,6 +665,9 @@
       </div>
       <div class="card"><p class="label">Data</p>
         <p class="small muted" style="margin:0 0 10px">${EXERCISES.filter((e) => !['warmup', 'stretch'].includes(e.cat)).length} main exercises, ${EXERCISES.filter((e) => e.cat === 'warmup').length} warm-up moves, ${EXERCISES.filter((e) => e.cat === 'stretch').length} stretches. History is stored only on this device.</p>
+        <p class="small" style="margin:0 0 10px"><b>Backup</b> · your history, your own workouts and settings in one file. ${S.lastBackup ? `Last backup: ${new Date(S.lastBackup).toLocaleDateString()}.` : '<span style="color:var(--prep)">No backup yet.</span>'} Own videos/photos are not included.</p>
+        <div class="row" style="gap:8px;margin-bottom:10px"><button class="btn block" id="bkExport">Export backup</button><button class="btn ghost block" id="bkImport">Import backup</button></div>
+        <input type="file" id="bkFile" accept="application/json,.json" hidden>
         <button class="btn ghost block" id="clearHist">Clear history</button>
       </div>`;
     $$('input[data-k]').forEach((i) => (i.onchange = () => { S[i.dataset.k] = i.checked; save(); }));
@@ -597,6 +717,7 @@
       $('#hrWarn').onchange = (e) => { S.hrWarn = e.target.checked; save(); };
       $$('#hrPct button').forEach((b) => (b.onclick = () => { S.hrWarnPct = +b.dataset.v; save(); $$('#hrPct button').forEach((x) => x.classList.toggle('on', x === b)); }));
     }
+    $$('#thumbs button').forEach((b) => (b.onclick = () => { S.thumbs = b.dataset.v; save(); $$('#thumbs button').forEach((x) => x.classList.toggle('on', x === b)); }));
     $$('#figView button').forEach((b) => (b.onclick = () => { S.figView = b.dataset.v; save(); Figure.setView(S.figView); $$('#figView button').forEach((x) => x.classList.toggle('on', x === b)); }));
     $$('#visual button').forEach((b) => (b.onclick = () => { S.visual = b.dataset.v; save(); $$('#visual button').forEach((x) => x.classList.toggle('on', x === b)); }));
     $$('#theme button').forEach((b) => (b.onclick = () => { S.theme = b.dataset.t; save(); applyTheme(); $$('#theme button').forEach((x) => x.classList.toggle('on', x === b)); }));
@@ -609,8 +730,97 @@
       } catch (e) { /* ignore */ }
       location.reload();
     };
+    $('#bkExport').onclick = () => Backup.export();
+    $('#bkImport').onclick = () => $('#bkFile').click();
+    $('#bkFile').onchange = (ev) => { const f = ev.target.files[0]; ev.target.value = ''; if (f) Backup.import(f); };
     $('#clearHist').onclick = () => { if (confirm('Delete your entire workout history?')) { store.history = []; save(); toast('History cleared'); } };
   }
+
+  // ---------- After a workout: how it felt + the kettlebell weight; generated workouts adapt to it ----------
+  const KG = [4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24, 28, 32];
+  const FEEL = { 1: 'Too easy', 2: 'Just right', 3: 'Too hard' };
+  const Feedback = {
+    html() {
+      return `<div class="feedback">
+        <p class="label" style="margin:0 0 8px">How did it feel?</p>
+        <div class="seg" id="fbFeel">${[1, 2, 3].map((v) => `<button data-v="${v}">${['😌', '👍', '🥵'][v - 1]} ${FEEL[v]}</button>`).join('')}</div>
+        <div class="row" style="margin-top:14px;align-items:center"><div style="flex:1;text-align:left"><b>Kettlebell</b><div class="small muted">the weight you used</div></div>
+          <div class="stepper"><button class="icon-btn" data-kg="-1" aria-label="Lighter">${ICON.minus}</button><b id="fbKg">${S.kbKg} kg</b><button class="icon-btn" data-kg="1" aria-label="Heavier">${ICON.plus}</button></div></div>
+        <p class="small" id="fbMsg" style="margin:12px 0 0;min-height:1.2em"></p>
+      </div>`;
+    },
+    bind(root, entry, plan) {
+      const generated = !plan.kind;
+      const msg = $('#fbMsg', root);
+      $$('[data-kg]', root).forEach((b) => (b.onclick = () => {
+        const i = Math.max(0, Math.min(KG.length - 1, KG.indexOf(S.kbKg) + +b.dataset.kg));
+        S.kbKg = KG[i < 0 ? 2 : i]; entry.kg = S.kbKg; save();
+        $('#fbKg', root).textContent = `${S.kbKg} kg`;
+      }));
+      $$('#fbFeel button', root).forEach((b) => (b.onclick = () => {
+        $$('#fbFeel button', root).forEach((x) => x.classList.toggle('on', x === b));
+        const first = !entry.feel;
+        entry.feel = +b.dataset.v; save();
+        if (first && generated && S.autoAdjust) this.adapt(entry.feel);
+        msg.innerHTML = this.advice(entry, generated);
+        const lv = $('#fbLevel', root);
+        if (lv) lv.onclick = () => { S.level = +lv.dataset.l; Object.assign(S.timing, Generator.LEVEL_TIMING[S.level]); save(); lv.replaceWith(document.createTextNode(`Level set to ${LEVEL_LABEL[S.level]}.`)); };
+      }));
+    },
+    // nudge work/rest a little for the next generated workout
+    adapt(feel) {
+      const t = S.timing;
+      if (feel === 1) { t.work = Math.min(60, t.work + 5); t.rest = Math.max(15, t.rest - 5); }
+      if (feel === 3) { t.work = Math.max(20, t.work - 5); t.rest = Math.min(90, t.rest + 10); }
+      save();
+    },
+    advice(entry, generated) {
+      const kb = store.history.filter((h) => !h.type && h.feel);
+      const lastN = (n) => kb.slice(-n);
+      const parts = [];
+      if (generated && S.autoAdjust && entry.feel !== 2) parts.push(`Next workout: <b>${S.timing.work}s work · ${S.timing.rest}s rest</b>.`);
+      if (entry.feel === 2) parts.push('Great – same again next time.');
+      const easy3 = lastN(3).length === 3 && lastN(3).every((h) => h.feel === 1);
+      if (easy3 && S.level < 3) parts.push(`Three easy ones in a row. <button class="btn ghost" id="fbLevel" data-l="${S.level + 1}" style="padding:6px 12px;margin-top:6px">Move up to ${LEVEL_LABEL[S.level + 1]}</button>`);
+      const easy2 = lastN(2).length === 2 && lastN(2).every((h) => h.feel === 1 && h.kg === entry.kg);
+      const next = KG[KG.indexOf(entry.kg) + 1];
+      if (easy2 && next) parts.push(`Two easy workouts with ${entry.kg} kg – try <b>${next} kg</b> next time.`);
+      const hard2 = lastN(2).length === 2 && lastN(2).every((h) => h.feel === 3);
+      if (hard2) parts.push('Two hard ones in a row – take a lighter bell or a rest day if you need it.');
+      return parts.join(' ');
+    },
+  };
+
+  // ---------- Backup: everything stored on this phone, as one file ----------
+  const Backup = {
+    async export() {
+      S.lastBackup = Date.now(); save();
+      const data = { app: 'kettlebell-app', format: 1, created: new Date().toISOString(), store: JSON.parse(localStorage.getItem(KEY) || '{}') };
+      delete data.store.active; // an unfinished workout isn't worth carrying over
+      const name = `kettlebell-backup-${new Date().toISOString().slice(0, 10)}.json`;
+      const blob = new Blob([JSON.stringify(data)], { type: 'application/json' });
+      // iPhone: the share sheet lets you save it to Files, iCloud Drive, mail it…
+      try {
+        const file = new File([blob], name, { type: 'application/json' });
+        if (navigator.canShare && navigator.canShare({ files: [file] })) { await navigator.share({ files: [file], title: 'Kettlebell backup' }); toast('Backup ready'); render(); return; }
+      } catch (e) { if (e && e.name === 'AbortError') return; }
+      const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name;
+      document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+      toast('Backup saved'); render();
+    },
+    async import(file) {
+      let data;
+      try { data = JSON.parse(await file.text()); } catch (e) { return toast('That file is not a backup'); }
+      const st = data && data.app === 'kettlebell-app' ? data.store : null;
+      if (!st || typeof st !== 'object' || !st.settings || !Array.isArray(st.history || [])) return toast('That file is not a Kettlebell backup');
+      const when = data.created ? new Date(data.created).toLocaleDateString() : 'an unknown date';
+      const msg = `Restore the backup from ${when}?\n\n${(st.history || []).length} workouts in history, ${(st.custom || []).length} own workouts.\n\nThis replaces what is on this phone now.`;
+      if (!confirm(msg)) return;
+      delete st.active;
+      try { localStorage.setItem(KEY, JSON.stringify(st)); } catch (e) { return toast('Could not save the backup on this phone'); }
+      toast('Backup restored'); setTimeout(() => location.reload(), 600);
+    },
+  };
 
   // ---------- Audio / voice / vibration ----------
   const Fx = {
@@ -763,14 +973,14 @@
   const LEG_MOVES = new Set(['sldl', 'kickstand', 'bridge1', 'splitSquat', 'rackLunge', 'suitLunge', 'ohLunge', 'lungeKnee', 's_quad', 's_hipflex']);
   const limb = (e) => (LEG_MOVES.has(e.id) ? 'leg' : e.cat === 'stretch' || e.cat === 'recovery' ? 'side' : 'hand');
   const Player = {
-    start(plan) {
+    start(plan, resume) {
       Fx.unlock();
       Fx.stopVoice();
       this.plan = plan;
-      this.iv = plan.intervals ? plan.intervals.map((x) => Object.assign({}, x)) : Generator.buildIntervals(plan);
+      this.iv = resume ? resume.iv : plan.intervals ? plan.intervals.map((x) => Object.assign({}, x)) : Generator.buildIntervals(plan);
       this.total = this.iv.reduce((s, x) => s + x.dur, 0);
-      this.skipped = 0;
-      this.running = true; this.last = performance.now();
+      this.skipped = resume ? resume.skipped || 0 : 0;
+      this.running = true; this.last = performance.now(); this.lastSave = Date.now();
       this.el = $('#player'); this.el.hidden = false;
       document.body.style.overflow = 'hidden';
       this.el.innerHTML = `
@@ -798,10 +1008,25 @@
       $('#pPrev').onclick = () => this.jump(-1);
       this.hrOff = HRUI.bind($('#pHr'));
       HR.startSession();
-      this.enter(0, true);
+      if (resume) {
+        // pick up where you stopped, paused, so you can get back into position first
+        this.enter(Math.min(resume.idx, this.iv.length - 1));
+        this.remain = Math.max(1, Math.min(this.remain, resume.remain));
+        this.renderTime();
+        this.toggle();
+        toast('Tap play to continue');
+      } else this.enter(0, true);
       this.wake();
       this.timer = setInterval(() => this.tick(), 200);
+      this.saveActive();
     },
+    // Remember the running workout, so it can be continued if the phone closes the app
+    saveActive() {
+      if (!this.plan || !this.iv) return;
+      store.active = { kind: 'player', plan: this.plan, iv: this.iv, idx: this.idx, remain: Math.round(this.remain), skipped: Math.round(this.skipped), savedAt: Date.now() };
+      save(); this.lastSave = Date.now();
+    },
+    clearActive() { if (store.active) { delete store.active; save(); } },
     async wake() {
       try { if ('wakeLock' in navigator) this.lock = await navigator.wakeLock.request('screen'); } catch (e) { /* not available */ }
     },
@@ -947,6 +1172,7 @@
       const dt = (now - this.last) / 1000; this.last = now;
       if (!this.running) return;
       HRUI.check(dt);
+      if (Date.now() - this.lastSave > 5000) this.saveActive();
       this.remain -= dt;
       const sec = Math.ceil(this.remain);
       if (sec >= 1 && this.lastBeep !== sec && sec < Math.ceil(this.iv[this.idx].dur)) {
@@ -1044,16 +1270,20 @@
         store.history.push({ type: 'recovery', date: Date.now(), sec, minutes: this.plan.minutes, focus: this.plan.focus, ex: this.plan.items.slice(), done, hr });
         return save();
       }
-      store.history.push({ date: Date.now(), sec, minutes: this.plan.minutes, focus: this.plan.focus, level: this.plan.level, ex: [...new Set(this.plan.main)], done, hr, name: this.plan.kind === 'custom' ? this.plan.name : undefined });
+      const entry = { date: Date.now(), sec, minutes: this.plan.minutes, focus: this.plan.focus, level: this.plan.level, ex: [...new Set(this.plan.main)], done, hr, name: this.plan.kind === 'custom' ? this.plan.name : undefined, kg: S.kbKg };
+      store.history.push(entry);
       save();
+      return entry;
     },
     exit() {
       if (this.doneSec() > 30 && !confirm('Quit this workout? Your progress will be saved to history.')) return;
+      this.clearActive();
       this.record(false);
       this.close();
     },
     finish() {
-      this.record(true);
+      this.clearActive();
+      const entry = this.record(true);
       clearInterval(this.timer);
       Figure.stop(this.svg);
       const sec = Math.round(this.doneSec());
@@ -1070,7 +1300,9 @@
       Fx.say('Workout complete. Great job!');
       this.el.innerHTML = `<div class="p-done"><div class="big">💪</div><h2>Workout complete!</h2>
         <p class="muted">${fmtMin(sec)} · ${this.plan.main.length} exercises · ${this.plan.kind === 'custom' ? esc(this.plan.name) : Generator.FOCUS_LABEL[this.plan.focus]}</p>
+        ${entry ? Feedback.html() : ''}
         <button class="btn primary big" id="pOk" style="min-width:220px">Done</button></div>`;
+      if (entry) Feedback.bind(this.el, entry, this.plan);
       $('#pOk').onclick = () => { this.close(); tab = 'history'; render(); };
     },
     close() {
@@ -1090,12 +1322,40 @@
   };
 
   document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible' && !$('#player').hidden && Player.running) Player.wake();
+    const open = !$('#player').hidden;
+    if (document.visibilityState === 'hidden' && open) { if (Player.plan && !$('#player').classList.contains('boxing')) Player.saveActive(); else if (window.Boxing && Boxing.saveActive) Boxing.saveActive(); }
+    if (document.visibilityState === 'visible' && open && Player.running) Player.wake();
   });
+  window.addEventListener('pagehide', () => { if (!$('#player').hidden && Player.plan && !$('#player').classList.contains('boxing')) Player.saveActive(); });
+
+  // An unfinished workout from earlier (the phone closed the app, a call came in…): offer to continue it
+  function resumeCard() {
+    const a = store.active;
+    if (!a) return null;
+    if (Date.now() - a.savedAt > 12 * 3600e3) { delete store.active; save(); return null; }
+    let title, left;
+    if (a.kind === 'boxing') { title = 'Shadowboxing'; left = a.left; }
+    else {
+      const done = a.iv.slice(0, a.idx).reduce((s, x) => s + x.dur, 0) + (a.iv[a.idx] ? a.iv[a.idx].dur - a.remain : 0);
+      left = a.iv.reduce((s, x) => s + x.dur, 0) - done;
+      title = a.plan.kind === 'custom' ? a.plan.name : a.plan.kind === 'recovery' ? 'Recovery' : 'Kettlebell workout';
+    }
+    const c = document.createElement('div'); c.className = 'card resume-card';
+    c.innerHTML = `<p class="label" style="margin-bottom:6px">Unfinished workout</p>
+      <div style="font-weight:700">${esc(title)} · ${fmt(left)} left</div>
+      <div class="small muted" style="margin:2px 0 12px">Stopped ${new Date(a.savedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
+      <div class="row" style="gap:8px"><button class="btn primary block" data-r="go">Continue</button><button class="btn ghost block" data-r="drop">Discard</button></div>`;
+    c.querySelector('[data-r=go]').onclick = () => {
+      const st = store.active;
+      if (st.kind === 'boxing') Boxing.resume(api(), st); else Player.start(st.plan, st);
+    };
+    c.querySelector('[data-r=drop]').onclick = () => { delete store.active; save(); render(); };
+    return c;
+  }
 
   // Helpers shared with the shadowboxing module (js/boxing.js)
   function api() {
-    return { S, store, save, Fx, ICON, fmt, fmtSec, fmtMin, toast, $, $$, rerender: render, HRUI, openSheet, filterBar, passFilters, batchList, goTab: (t) => { tab = t; render(); }, exItem, startPlayer: (plan) => Player.start(plan) };
+    return { S, store, save, Fx, ICON, fmt, fmtSec, fmtMin, toast, $, $$, rerender: render, HRUI, openSheet, filterBar, passFilters, batchList, groupVersions, versionsOf, goTab: (t) => { tab = t; render(); }, exItem, startPlayer: (plan) => Player.start(plan) };
   }
 
   // Block zoom: iOS Safari ignores user-scalable=no, so stop pinch gestures and fast double-taps here too
@@ -1106,8 +1366,9 @@
     const now = Date.now();
     if (now - lastTouchEnd < 350 && !e.target.closest('input, select, textarea')) {
       e.preventDefault();
-      const t = e.target.closest('button, label, [data-skip]');
-      if (t) t.click(); // still register the second tap on buttons
+      // still register the second tap – on buttons and on anything else that reacts to taps (list rows, pictures, block headings)
+      const t = e.target.closest('button, label, [data-skip], summary, a') || e.target;
+      if (t && typeof t.click === 'function') t.click(); else if (t) t.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true })); // SVG has no .click()
     }
     lastTouchEnd = now;
   }, { passive: false });
@@ -1118,7 +1379,7 @@
   if ('serviceWorker' in navigator && location.protocol !== 'file:') {
     window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').then((reg) => {
       // look for a new version whenever the app comes back to the foreground
-      document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') reg.update().catch(() => {}); });
+      document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && reg) reg.update().catch(() => {}); });
     }).catch(() => {}));
     // a new version took over: reload once – but not on the very first install, and never in the
     // middle of a workout or while you're editing one (it would lose what you were doing)
