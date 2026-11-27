@@ -13,7 +13,7 @@ const checkIv = (iv, tag) => {
     if (!x.phase) bad(`${tag}: interval ${i} no phase`);
   });
 };
-let n = 0;
+let n = 0, sameGroup = 0, pairs = 0, skipNeighbour = 0;
 // --- kettlebell generator
 for (let k = 0; k < 3000; k++) {
   const timing = {
@@ -36,6 +36,22 @@ for (let k = 0; k < 3000; k++) {
     if (o.backSafe && (e.back !== undefined ? e.back : Generator.BACK[id] || 0) >= 2) bad(`${tag}: high back load ${id} in back-safe`);
     if (['warmup', 'stretch', 'recovery', 'flow', 'juggling'].includes(e.cat)) bad(`${tag}: ${e.cat} exercise ${id} in main`);
   }
+  // order: same muscle group back to back only when nothing else fits; a gentle, two-sided first move
+  for (let i = 1; i < p.main.length; i++) if (Generator.groupOf(EX[p.main[i]]) === Generator.groupOf(EX[p.main[i - 1]])) sameGroup++;
+  pairs += Math.max(0, p.main.length - 1);
+  if (EX[p.main[0]].uni) bad(`${tag}: starts with a one-sided move ${p.main[0]}`);
+  // Skip in the main part: a different group than this, the previous and the next exercise, same one-/two-sided shape
+  if (p.main.length >= 3) {
+    const i = r(1, p.main.length - 2), cur = EX[p.main[i]];
+    const alt = Generator.alternative(p, cur.id, { sameShape: true, otherGroup: true, prev: p.main[i - 1], next: p.main[i + 1] });
+    if (alt) {
+      const g = Generator.groupOf(EX[alt]);
+      if (g === Generator.groupOf(cur)) bad(`${tag}: skip kept the group ${g}`);
+      if (g === Generator.groupOf(EX[p.main[i - 1]]) || g === Generator.groupOf(EX[p.main[i + 1]])) skipNeighbour++;
+      if (!!EX[alt].uni !== !!cur.uni) bad(`${tag}: skip changed one-/two-sided shape`);
+      if (o.backSafe && (EX[alt].back !== undefined ? EX[alt].back : Generator.BACK[alt] || 0) >= 2) bad(`${tag}: skip picked high back load ${alt}`);
+    }
+  }
   // retime + swap + alternative must keep working
   try {
     Generator.retime(p, Object.assign({}, timing, { work: r(15, 60) }));
@@ -46,6 +62,9 @@ for (let k = 0; k < 3000; k++) {
   } catch (e) { bad(`${tag}: retime/swap THROWS ${e.message}`); }
   n++;
 }
+if (sameGroup / pairs > 0.01) bad(`same muscle group back to back in ${(100 * sameGroup / pairs).toFixed(1)}% of transitions`);
+if (skipNeighbour > n * 0.02) bad(`skip picked the neighbours' group ${skipNeighbour} times`);
+console.log(`order: same group back to back ${sameGroup}/${pairs}; skip next to same group ${skipNeighbour}/${n}`);
 // --- custom workouts
 const pool = EXERCISES.map((e) => e.id);
 for (let k = 0; k < 800; k++) {

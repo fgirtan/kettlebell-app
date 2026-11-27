@@ -113,6 +113,23 @@ async function waitDone(p, maxMs) {
     if (p._errs.length) bad('boxing errors: ' + p._errs.join(' | '));
     await p.context().close();
   }
+  // E2. Skip during the main part moves to a different muscle group each time, time left unchanged
+  {
+    const p = await newPage(b, { speed: 1 });
+    await p.goto(URL); await W(p); await p.tap('#gen'); await W(p); await p.tap('.sticky-start button'); await W(p, 600);
+    await p.tap('[data-skip=skipWarm]'); await W(p, 400);
+    await p.tap('#pPlay'); await W(p, 200); // pause so the clock doesn't move
+    const grp = () => p.evaluate(() => { const n = document.querySelector('.p-name').textContent.replace(/^Next:\s*/, ''); const e = EXERCISES.find((x) => x.name === n); return e ? Generator.groupOf(e) : '?' + n; });
+    const left0 = await p.textContent('#pLeft');
+    const seen = [await grp()];
+    for (let i = 0; i < 3; i++) { await p.tap('#pNext'); await W(p, 300); seen.push(await grp()); }
+    const left1 = await p.textContent('#pLeft');
+    const allDiff = seen.every((g, i) => i === 0 || g !== seen[i - 1]) && !seen.some((g) => g.startsWith('?'));
+    if (allDiff && left0 === left1) ok(`skip changes the muscle group: ${seen.join(' → ')} (time left ${left1} unchanged)`);
+    else bad(`skip groups: ${seen.join(' → ')} time ${left0} → ${left1}`);
+    if (p._errs.length) bad('skip-group errors: ' + p._errs.join(' | '));
+    await p.context().close();
+  }
   // F. pause really pauses
   {
     const p = await newPage(b, { speed: 1 });

@@ -16,10 +16,10 @@
   };
 
   // ---------- Storage ----------
-  const APP_VERSION = '2026.11.27 (v26)';
+  const APP_VERSION = '2026.11.27 (v27)';
   const KEY = 'kettlebell.v1';
   const DEFAULTS = {
-    settings: { minutes: 30, level: 1, focus: 'full', sound: true, voice: true, vibrate: true, theme: 'auto', voiceName: '', voiceRate: 1, voiceVol: 1, prepCue: 'ticks', silentMode: true, voiceEngine: 'clips', clipVoice: 'm', visual: 'photo', backSafe: true, lowFloor: true, twoBells: false, hrAge: 40, hrWarn: true, hrWarnPct: 85 },
+    settings: { minutes: 30, level: 1, focus: 'full', sound: true, voice: true, vibrate: true, theme: 'auto', voiceName: '', voiceRate: 1, voiceVol: 1, prepCue: 'ticks', silentMode: true, voiceEngine: 'clips', clipVoice: 'm', visual: 'photo', figView: 'angle', backSafe: true, lowFloor: true, twoBells: false, hrAge: 40, hrWarn: true, hrWarnPct: 85 },
     plan: null,
     history: [],
   };
@@ -29,6 +29,7 @@
   store.settings = Object.assign({}, DEFAULTS.settings, store.settings);
   const S = store.settings;
   delete S.custom; // old format
+  Figure.setView(S.figView);
   // timing format v2 (rest every N exercises, side switch) – reset older saved timing to the new defaults
   if (!S.timing || S.timing.switch === undefined) S.timing = {};
   S.timing = Object.assign({}, Generator.DEFAULT_TIMING, Generator.LEVEL_TIMING[S.level], S.timing);
@@ -332,6 +333,7 @@
       <div class="row" style="justify-content:flex-end"><button class="icon-btn" id="shClose" aria-label="Close">${ICON.close}</button></div>
       <div class="stage"></div>
       ${self.PHOTOS && self.PHOTOS[id] ? `<div class="seg mini" id="visSeg" style="max-width:260px;margin:0 auto 10px">${[['photo', 'Real photos'], ['figure', 'Animation']].map(([v, l]) => `<button data-v="${v}" class="${(S.visual === 'figure' ? 'figure' : 'photo') === v ? 'on' : ''}">${l}</button>`).join('')}</div>` : ''}
+      <div class="seg mini" id="viewSeg" style="max-width:220px;margin:0 auto 10px">${[['angle', '3/4 view'], ['side', 'Side view']].map(([v, l]) => `<button data-v="${v}" class="${S.figView === v ? 'on' : ''}">${l}</button>`).join('')}</div>
       <h2>${e.name}</h2>
       <p style="margin:10px 0 4px">${regionTag(e)}<span class="tag">${CAT_LABEL[e.cat]}</span><span class="tag">${LEVEL_LABEL[e.level]}</span>${e.uni ? '<span class="tag">each side</span>' : ''}${e.alt ? '<span class="tag">alternating</span>' : ''}${e.floor ? '<span class="tag">on the floor</span>' : ''}${e.bw ? '<span class="tag">bodyweight</span>' : ''}${e.eq === 2 ? '<span class="tag">2 kettlebells</span>' : ''}<span class="tag back${backOf(e)}">Back load: ${['low', 'moderate', 'high'][backOf(e)]}</span></p>
       ${e.lib ? '<p class="small muted" style="margin:4px 0 0">From the Caveman Kettlebells exercise list · animation shows the closest basic movement – tap ▶ Watch real demo for the exact variation.</p>' : ''}
@@ -353,7 +355,10 @@
       stage.classList.toggle('photo', !!pk);
       if (pk) { stage.appendChild(photoEl(pk)); const t = document.createElement('span'); t.className = 'ph-tag'; t.textContent = 'start ⇄ end position'; stage.querySelector('.ph').appendChild(t); }
       else { stage.appendChild(svg); Figure.animate(svg, e.anim); }
+      const vs = sh.querySelector('#viewSeg'); if (vs) vs.hidden = !!pk;
+      curMode = mode;
     };
+    let curMode = 'figure';
     const showOwn = () => {
       const own = Media.element(id);
       if (!own) return false;
@@ -380,6 +385,10 @@
     if (rm) rm.onclick = async () => { await Media.remove(id); toast('Removed'); close(); openSheet(id, opts); if (!stacked) render(); };
     $$('#visSeg button', sh).forEach((b) => (b.onclick = () => {
       S.visual = b.dataset.v; save(); $$('#visSeg button', sh).forEach((x) => x.classList.toggle('on', x === b)); showVis(S.visual);
+    }));
+    $$('#viewSeg button', sh).forEach((b) => (b.onclick = () => {
+      S.figView = b.dataset.v; save(); Figure.setView(S.figView);
+      $$('#viewSeg button', sh).forEach((x) => x.classList.toggle('on', x === b)); showVis(curMode);
     }));
     sh.hidden = false;
     const close = () => { Figure.stop(svg); sh.hidden = true; sh.innerHTML = ''; if (opts && opts.onClose) opts.onClose(); };
@@ -517,6 +526,8 @@
       </div>
       <div class="card"><p class="label">Exercise visuals</p>
         <div class="seg" id="visual">${[['photo', 'Real photos'], ['figure', 'Animation']].map(([k, l]) => `<button data-v="${k}" class="${(S.visual === 'figure' ? 'figure' : 'photo') === k ? 'on' : ''}">${l}</button>`).join('')}</div>
+        <p class="label" style="margin-top:14px">Animated figure angle</p>
+        <div class="seg" id="figView">${[['angle', '3/4 front'], ['side', 'Side']].map(([k, l]) => `<button data-v="${k}" class="${S.figView === k ? 'on' : ''}">${l}</button>`).join('')}</div>
         <p class="small muted" style="margin:10px 2px 0">Real photos (start ⇄ end position) are shown for ${Object.keys(self.PHOTOS || {}).length} exercises; the others use the animated figure. Photos: free-exercise-db, public domain.</p>
         <p class="small muted" style="margin:8px 2px 0">You can add your own video or photo to any exercise from its page (＋ Add my video/photo); it then replaces the photo or animation everywhere, offline too. ${Media.count() ? `You have added ${Media.count()}.` : ''}</p>
       </div>
@@ -586,6 +597,7 @@
       $('#hrWarn').onchange = (e) => { S.hrWarn = e.target.checked; save(); };
       $$('#hrPct button').forEach((b) => (b.onclick = () => { S.hrWarnPct = +b.dataset.v; save(); $$('#hrPct button').forEach((x) => x.classList.toggle('on', x === b)); }));
     }
+    $$('#figView button').forEach((b) => (b.onclick = () => { S.figView = b.dataset.v; save(); Figure.setView(S.figView); $$('#figView button').forEach((x) => x.classList.toggle('on', x === b)); }));
     $$('#visual button').forEach((b) => (b.onclick = () => { S.visual = b.dataset.v; save(); $$('#visual button').forEach((x) => x.classList.toggle('on', x === b)); }));
     $$('#theme button').forEach((b) => (b.onclick = () => { S.theme = b.dataset.t; save(); applyTheme(); $$('#theme button').forEach((x) => x.classList.toggle('on', x === b)); }));
     $('#forceUpdate').onclick = async () => {
@@ -986,8 +998,21 @@
       // remember the original movement group and everything already skipped for this spot
       if (!cur.origSlot) cur.origSlot = Generator.CAT_SLOT[EX[cur.ex].cat];
       cur.skipped = (cur.skipped || []).concat(cur.ex);
-      let alt = Generator.alternative(planLike, cur.ex, { sameShape: true, slot: cur.origSlot, avoid: cur.skipped });
-      if (!alt) { cur.skipped = [cur.ex]; alt = Generator.alternative(planLike, cur.ex, { sameShape: true, slot: cur.origSlot, avoid: cur.skipped }); }
+      let alt;
+      const mainWork = cur.phase === 'work' && this.plan.kind !== 'recovery';
+      if (mainWork) {
+        // Skip in the main part: a move for a different muscle group, one that also differs from the exercise
+        // before and after, so the order keeps flowing; each further skip tries another group
+        const k = this.iv.indexOf(cur);
+        let prev = null, next = null;
+        for (let i = k - 1; i >= 0 && !prev; i--) if (this.iv[i].phase === 'work' && this.iv[i].inst !== target) prev = this.iv[i].ex;
+        for (let i = k + 1; i < this.iv.length && !next; i++) if (this.iv[i].phase === 'work' && this.iv[i].inst !== target) next = this.iv[i].ex;
+        cur.skippedGroups = (cur.skippedGroups || []).concat(Generator.groupOf(EX[cur.ex]));
+        alt = Generator.alternative(planLike, cur.ex, { sameShape: true, otherGroup: true, prev, next, avoid: cur.skipped, avoidGroups: cur.skippedGroups });
+      } else {
+        alt = Generator.alternative(planLike, cur.ex, { sameShape: true, slot: cur.origSlot, avoid: cur.skipped });
+        if (!alt) { cur.skipped = [cur.ex]; alt = Generator.alternative(planLike, cur.ex, { sameShape: true, slot: cur.origSlot, avoid: cur.skipped }); }
+      }
       if (!alt) { toast('No alternative for this one'); return true; }
       const oldId = cur.ex;
       this.iv.forEach((y) => { if (y.inst === target || (y.forInst === target && y.ex === oldId)) { y.ex = alt; if (y.inst === target) { y.origSlot = cur.origSlot; y.skipped = cur.skipped; } } });
@@ -997,7 +1022,7 @@
       const keep = this.remain;
       this.enter(this.idx);
       this.remain = keep; this.renderTime();
-      toast('Swapped to ' + EX[alt].name);
+      toast('Swapped to ' + EX[alt].name + (mainWork ? ' · ' + Generator.GROUP_LABEL[Generator.groupOf(EX[alt])] : ''));
       return true;
     },
     jump(d, noSwap) {

@@ -1,9 +1,10 @@
 // Workout generator: one continuous sequence of exercises + rests that fits the selected total time exactly.
 //
 // How the order is built (inspired by common full-body kettlebell programming):
-//  * A repeating movement pattern – squat/lunge → press → hinge → row/pullover → core – so the body moves
-//    from legs to upper body to posterior chain to back to trunk, and every area gets a break before it
-//    is used again.
+//  * Every exercise belongs to one muscle group. Groups follow each other in body order – legs → hips/glutes →
+//    core → back → shoulders/chest → arms → a total-body move that leads back to the legs – so each step moves
+//    to the neighbouring area, the same group never comes twice in a row, and every area rests before it is
+//    used again. The session opens with simple two-sided moves for the big muscles.
 //  * Lower-back load is tracked for every exercise. Two back-loading moves are never placed back to back,
 //    and in back-friendly mode (default) high-load moves (swings, cleans, snatches, good mornings, bent-over
 //    holds…) are left out entirely; hinges become deadlifts, glute bridges and kickstand variations.
@@ -19,18 +20,36 @@
   };
   const DEFAULT_TIMING = Object.assign({ prep: 5, switch: 2, warmOn: true, warmMin: 0, coolOn: true, coolMin: 0 }, LEVEL_TIMING[1]);
 
-  // Movement slots and the exercise categories that can fill them
-  const SLOT_CATS = { knee: ['squat', 'lunge'], push: ['push'], hinge: ['hinge', 'ballistic'], pull: ['pull'], core: ['core'], arms: ['arms'], total: ['total'] };
-  const CAT_SLOT = { squat: 'knee', lunge: 'knee', push: 'push', hinge: 'hinge', ballistic: 'hinge', pull: 'pull', core: 'core', arms: 'arms', total: 'total' };
+  // Muscle group of an exercise (its main target), from its category and first-listed muscle
+  const GROUP_LABEL = { legs: 'Legs', hips: 'Hips & glutes', core: 'Core', back: 'Back', shoulders: 'Shoulders', chest: 'Chest', arms: 'Arms', total: 'Total body' };
+  function groupOf(e) {
+    if (!e) return null;
+    if (e.group) return e.group;
+    const m = e.muscles[0];
+    switch (e.cat) {
+      case 'squat': case 'lunge': return 'legs';
+      case 'hinge': case 'ballistic': return 'hips';
+      case 'pull': return m === 'shoulders' || m === 'traps' ? 'shoulders' : 'back';
+      case 'push': return m === 'chest' ? 'chest' : m === 'triceps' ? 'arms' : 'shoulders';
+      case 'arms': return m === 'shoulders' ? 'shoulders' : 'arms';
+      case 'core': return m === 'shoulders' ? 'shoulders' : 'core';
+      case 'total': return 'total';
+      default: return null;
+    }
+  }
+  // Body order: each group sits next to the ones it flows into
   const PATTERNS = {
-    full: ['knee', 'push', 'hinge', 'pull', 'core'],
-    lower: ['knee', 'push', 'hinge', 'core', 'knee', 'pull', 'hinge', 'core'],
-    upper: ['push', 'knee', 'pull', 'core', 'arms', 'hinge', 'push', 'pull'],
-    core: ['knee', 'core', 'push', 'core', 'hinge', 'pull', 'core'],
+    full: ['legs', 'hips', 'core', 'back', 'shoulders', 'arms', 'total'],
+    lower: ['legs', 'hips', 'core', 'legs', 'hips', 'core', 'back', 'shoulders'],
+    upper: ['back', 'shoulders', 'arms', 'core', 'legs', 'back', 'chest', 'arms', 'core', 'hips'],
+    core: ['legs', 'core', 'hips', 'core', 'back', 'core', 'shoulders', 'core'],
   };
-  // Occasional variety: some waves swap a slot for a total-body or arm move
-  const VARIANTS = { push: ['total', 'arms'], pull: ['arms'] };
-  const FALLBACK = { knee: ['total'], push: ['arms', 'total'], hinge: ['knee'], pull: ['arms', 'push'], core: ['total'], arms: ['push', 'pull'], total: ['knee', 'core'] };
+  // Occasional variety: some rounds swap a slot for a neighbouring group
+  const VARIANTS = { shoulders: ['chest'], arms: ['shoulders', 'back'], total: ['legs'] };
+  const FALLBACK = { legs: ['total'], hips: ['legs'], core: ['total'], back: ['arms'], shoulders: ['chest', 'arms'], chest: ['shoulders', 'arms'], arms: ['shoulders', 'back'], total: ['legs', 'core'] };
+  // neighbouring groups in body order (used when Skip picks a different group)
+  const ADJ = { legs: ['hips', 'total', 'core'], hips: ['legs', 'core'], core: ['hips', 'back', 'legs'], back: ['core', 'shoulders', 'arms'], shoulders: ['back', 'arms', 'chest'], chest: ['shoulders', 'arms'], arms: ['shoulders', 'back', 'chest'], total: ['legs', 'core'] };
+  const CAT_SLOT = { squat: 'legs', lunge: 'legs', push: 'shoulders', hinge: 'hips', ballistic: 'hips', pull: 'back', core: 'core', arms: 'arms', total: 'total' };
   const FOCUS_SHORT = { full: 'Full body', lower: 'Legs', upper: 'Upper body', core: 'Core' };
   const FOCUS_LABEL = { full: 'Full body', lower: 'Legs focus', upper: 'Upper body focus', core: 'Core focus' };
 
@@ -113,11 +132,21 @@
       if (p1.anim === c.anim) cost += 10;
     }
     if (p2) for (const m of c.muscles) if (!IGNORE_MUSCLE.has(m) && p2.muscles.includes(m)) cost += 1;
+    // a smooth start: the first moves are simple, two-sided, well-known lifts for the big muscles
+    if (seq.length < 3) {
+      if (c.uni) cost += 5;
+      if (c.alt) cost += 3;
+      if (c.lib) cost += 3;
+      if (c.staple) cost -= 2;
+      if (c.level >= 2) cost += 3;
+    }
     // gradual intensity: controlled basics first, demanding moves in the middle, calm floor core at the end
     const hard = c.cat === 'ballistic' || c.level >= 3 || (c.cat === 'total' && c.anim !== 'carry');
     if (f < 0.25 && hard) cost += 6;
     if (f < 0.2 && c.level >= 2) cost += 2;
     if (f > 0.8 && hard) cost += 4;
+    if (p1 && groupOf(p1) === groupOf(c)) cost += 12; // never the same muscle group twice in a row
+    if ((PICK_WEIGHT[c.id] || 1) < 0.5) cost += 4; // small accessory moves (calf raises) only now and then
     if (slot === 'core' && f > 0.75 && onFloor(c)) cost -= 2;
     if (slot === 'core' && f < 0.5 && onFloor(c)) cost += 2.5; // keep the floor for later
     return cost;
@@ -131,7 +160,7 @@
     const baseUsed = new Set(seq.map((x) => baseName(x)));
     const fresh = (e) => !used.has(e.id) && !baseUsed.has(baseName(e));
     const canRepeat = (e, gap) => e.staple && used.has(e.id) && idx - used.get(e.id).last >= gap && used.get(e.id).count < maxUses;
-    const inSlot = (s) => EXERCISES.filter((e) => SLOT_CATS[s].includes(e.cat) && allowed(e, level, backSafe) && (floorOk || !onFloor(e)) && (!floorOnly || onFloor(e)));
+    const inSlot = (s) => EXERCISES.filter((e) => groupOf(e) === s && allowed(e, level, backSafe) && (floorOk || !onFloor(e)) && (!floorOnly || onFloor(e)));
     const tries = [
       () => inSlot(slot).filter(fresh),
       ...(FALLBACK[slot] || []).map((s) => () => inSlot(s).filter(fresh)),
@@ -145,12 +174,16 @@
     // move among fresh/staple options, then allow anything, and only at the very end allow plain repeats
     const strict = backSafe && p1 && back(p1) >= 1;
     const nFresh = tries.length - 2;
+    // and the same muscle group never twice in a row, unless there is truly nothing else
+    const g1 = p1 && groupOf(p1);
     const order = [];
-    if (strict) for (let k = 0; k < nFresh; k++) order.push([tries[k], true]);
-    for (let k = 0; k < tries.length; k++) order.push([tries[k], false]);
-    for (const [t, easyOnly] of order) {
+    if (strict) for (let k = 0; k < nFresh; k++) order.push([tries[k], true, true]);
+    for (let k = 0; k < tries.length; k++) order.push([tries[k], false, true]);
+    for (let k = 0; k < tries.length; k++) order.push([tries[k], false, false]);
+    for (const [t, easyOnly, newGroup] of order) {
       let list = t();
       if (easyOnly) list = list.filter((e) => back(e) === 0);
+      if (newGroup && g1) list = list.filter((e) => groupOf(e) !== g1);
       if (!list.length) continue;
       const scored = list.map((e) => [e, transitionCost(e, seq, f, slot)]);
       const best = Math.min(...scored.map((x) => x[1]));
@@ -384,12 +417,14 @@
     twoBells = !!plan.twoBells || plan.kind === 'custom';
     const ok = (e) => e.id !== id && !avoid.has(e.id) && !(e.eq === 2 && !twoBells) && (!sameShape || (!!e.uni === !!cur.uni)) && !(floorFree && isFloor(e));
     let list;
+    const level = plan.level || 3, backSafe = plan.backSafe !== false;
     if (['warmup', 'stretch', 'recovery'].includes(cur.cat)) {
       list = EXERCISES.filter((e) => e.cat === cur.cat && ok(e));
+    } else if (opts && opts.otherGroup) {
+      return otherGroupAlt(plan, cur, opts, ok, inPlan, level, backSafe);
     } else {
-      const slot = (opts && opts.slot) || CAT_SLOT[cur.cat];
-      const level = plan.level || 3, backSafe = plan.backSafe !== false;
-      const cands = (s) => EXERCISES.filter((e) => SLOT_CATS[s].includes(e.cat) && allowed(e, level, backSafe) && ok(e));
+      const slot = (opts && opts.slot) || groupOf(cur);
+      const cands = (s) => EXERCISES.filter((e) => groupOf(e) === s && allowed(e, level, backSafe) && ok(e));
       list = cands(slot);
       if (!list.length) for (const s of FALLBACK[slot] || []) list = list.concat(cands(s));
     }
@@ -397,6 +432,37 @@
     const fresh = list.filter((e) => !inPlan.has(e.id));
     const pick = fresh.length ? fresh : list;
     return pick[rnd(pick.length)].id;
+  }
+
+  // Skip during a workout: a move for a DIFFERENT muscle group that fits between the previous and the next
+  // exercise (not their groups either), preferring groups next to them in body order. Repeated skips on the
+  // same spot keep moving to groups not tried yet.
+  function otherGroupAlt(plan, cur, opts, ok, inPlan, level, backSafe) {
+    const prev = EX[opts.prev], next = EX[opts.next];
+    const block = new Set([groupOf(cur), groupOf(prev), groupOf(next), ...(opts.avoidGroups || [])]);
+    const lowFloor = plan.lowFloor !== false && !plan.kind;
+    const pool = (blocked) => EXERCISES.filter((e) => {
+      const g = groupOf(e);
+      return g && !blocked.has(g) && allowed(e, level, backSafe) && ok(e) && (!lowFloor || !onFloor(e) || onFloor(cur));
+    });
+    let list = pool(block);
+    if (!list.length) list = pool(new Set([groupOf(cur), groupOf(prev), groupOf(next)])); // all tried: start over
+    if (!list.length) list = pool(new Set([groupOf(cur)]));
+    if (!list.length) return null;
+    const near = new Set([...(ADJ[groupOf(prev)] || []), ...(ADJ[groupOf(next)] || [])]);
+    const seq = prev ? [prev] : [];
+    const scored = list.map((e) => {
+      let c = transitionCost(e, seq, 0.5, groupOf(e));
+      if (next) for (const m of e.muscles) if (!IGNORE_MUSCLE.has(m) && next.muscles.includes(m)) c += 2.5;
+      if (next && backSafe && back(e) >= 1 && back(next) >= 1) c += 8;
+      if (!near.has(groupOf(e))) c += 4;
+      if (inPlan.has(e.id)) c += 6;
+      if (e.lib) c += 1;
+      return [e, c];
+    });
+    const best = Math.min(...scored.map((x) => x[1]));
+    const pick = scored.filter((x) => x[1] <= best + 3);
+    return weightedPick(pick.map(([e]) => [e, (PICK_WEIGHT[e.id] || 1) * (e.level === level ? 2 : 1)])).id;
   }
 
   // Replace one main exercise in a plan (preview "swap" button)
@@ -427,5 +493,5 @@
     return plan;
   }
 
-  global.Generator = { customPlan, CAT_SLOT, generate, retime, buildIntervals, totalDuration, swap, alternative, linkNext, BACK, FOCUS_LABEL, FOCUS_SHORT, LEVEL_TIMING, DEFAULT_TIMING };
+  global.Generator = { customPlan, CAT_SLOT, groupOf, GROUP_LABEL, generate, retime, buildIntervals, totalDuration, swap, alternative, linkNext, BACK, FOCUS_LABEL, FOCUS_SHORT, LEVEL_TIMING, DEFAULT_TIMING };
 })(window);

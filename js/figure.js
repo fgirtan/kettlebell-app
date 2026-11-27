@@ -107,7 +107,7 @@
   function build(svg) {
     svg.setAttribute('viewBox', '0 0 200 200');
     svg.innerHTML = '';
-    el('ellipse', { cx: 100, cy: G + 3, rx: 70, ry: 4, class: 'fg-shadow' }, svg);
+    const shadow = el('ellipse', { cx: 100, cy: G + 3, rx: 70, ry: 4, class: 'fg-shadow' }, svg);
     el('line', { x1: 8, y1: G + 3, x2: 192, y2: G + 3, class: 'fg-ground' }, svg);
     const far = el('g', { class: 'fg-far' }, svg);
     const seg = (g, cls) => el('line', { class: cls }, g);
@@ -115,6 +115,7 @@
     parts.farUA = seg(far, 'fg-shirt fg-ua'); parts.farFA = seg(far, 'fg-skin fg-fa'); parts.farHand = el('circle', { r: 3.6, class: 'fg-skin-fill' }, far);
     parts.farTh = seg(far, 'fg-pants fg-th'); parts.farSh = seg(far, 'fg-pants fg-sh'); parts.farFoot = seg(far, 'fg-shoe fg-ft');
     const body = el('g', { class: 'fg-body' }, svg);
+    parts.torsoPoly = el('polygon', { class: 'fg-torso-poly' }, body);
     parts.torso = seg(body, 'fg-shirt fg-torso');
     parts.pelvis = el('circle', { r: 7.5, class: 'fg-pants-fill' }, body);
     parts.nearTh = seg(body, 'fg-pants fg-th'); parts.nearSh = seg(body, 'fg-pants fg-sh'); parts.nearFoot = seg(body, 'fg-shoe fg-ft');
@@ -123,7 +124,7 @@
     parts.face = el('circle', { r: L.head - 0.6, class: 'fg-skin-fill' }, body);
     parts.eye = el('circle', { r: 1.3, class: 'fg-eye' }, body);
     parts.eye2 = el('circle', { r: 1.3, class: 'fg-eye' }, body);
-    parts.far = far;
+    parts.far = far; parts.shadow = shadow;
     parts.kbG = el('g', { class: 'fg-kb' }, svg);
     parts.kbBody = el('circle', { r: 8 }, parts.kbG);
     parts.kbHandle = el('path', { fill: 'none' }, parts.kbG);
@@ -136,8 +137,10 @@
   const line = (l, a, b) => { l.setAttribute('x1', f1(a[0])); l.setAttribute('y1', f1(a[1])); l.setAttribute('x2', f1(b[0])); l.setAttribute('y2', f1(b[1])); };
   const dot = (c, a) => { c.setAttribute('cx', f1(a[0])); c.setAttribute('cy', f1(a[1])); };
 
-  function draw(parts, p) {
+  function drawSide(parts, p) {
     const j = solve(p);
+    parts.torsoPoly.style.display = 'none'; parts.torso.style.display = '';
+    parts.shadow && parts.shadow.setAttribute('ry', 4);
     line(parts.farUA, j.sh, j.e2); line(parts.farFA, j.e2, j.h2); dot(parts.farHand, j.h2);
     line(parts.farTh, j.hip, j.k2); line(parts.farSh, j.k2, j.an2); line(parts.farFoot, j.an2, j.t2);
     // torso from just above the hip to just below the shoulder so the joints look rounded
@@ -161,6 +164,55 @@
       parts.eye2.style.display = 'none'; parts.far.style.opacity = '';
     }
     line(parts.nearUA, j.sh, j.e1); line(parts.nearFA, j.e1, j.h1); dot(parts.nearHand, j.h1);
+    drawKb(parts, p, j);
+    return j;
+  }
+
+  // ---------- 3/4 view: the body gets width (shoulders, hips, two separate arms and legs) and is seen
+  // from the front-right and a little from above, so both sides and the kettlebell path are visible.
+  let VIEW = 'angle';
+  const YAW = 50, PITCH = 13, SHW = 15, HIPW = 8.5;
+  function project(pt, z) {
+    const dx = pt[0] - 100, dy = pt[1] - G;
+    const X = 100 + dx * cos(YAW) - z * sin(YAW);
+    const depth = dx * sin(YAW) + z * cos(YAW);
+    return [X, G + dy * cos(PITCH) + depth * sin(PITCH)];
+  }
+  function drawAngle(parts, p) {
+    const j = solve(p);
+    const two = p.kb === 'both';
+    // a two-hand grip brings the hands together in the middle
+    const hz = two ? 2.6 : SHW, ez = two ? 7.5 : SHW;
+    const P = project;
+    const q = {
+      shN: P(j.sh, SHW), shF: P(j.sh, -SHW), hipN: P(j.hip, HIPW), hipF: P(j.hip, -HIPW),
+      e1: P(j.e1, ez), h1: P(j.h1, hz), e2: P(j.e2, -ez), h2: P(j.h2, -hz),
+      k1: P(j.k1, HIPW), an1: P(j.an1, HIPW), t1: P(j.t1, HIPW), k2: P(j.k2, -HIPW), an2: P(j.an2, -HIPW), t2: P(j.t2, -HIPW),
+      sh: P(j.sh, 0), hip: P(j.hip, 0), head: P(j.head, 0),
+    };
+    line(parts.farUA, q.shF, q.e2); line(parts.farFA, q.e2, q.h2); dot(parts.farHand, q.h2);
+    line(parts.farTh, q.hipF, q.k2); line(parts.farSh, q.k2, q.an2); line(parts.farFoot, q.an2, q.t2);
+    parts.torso.style.display = 'none'; parts.torsoPoly.style.display = '';
+    parts.torsoPoly.setAttribute('points', [q.shN, q.shF, q.hipF, q.hipN].map((v) => `${f1(v[0])},${f1(v[1])}`).join(' '));
+    dot(parts.pelvis, q.hip);
+    line(parts.nearTh, q.hipN, q.k1); line(parts.nearSh, q.k1, q.an1); line(parts.nearFoot, q.an1, q.t1);
+    const ha = (p.a + (p.hd || 0)) * R;
+    const up = [Math.sin(ha), -Math.cos(ha)], fwd = [Math.cos(ha), Math.sin(ha)];
+    const at = (b, f, u, z) => P([b[0] + fwd[0] * f + up[0] * u, b[1] + fwd[1] * f + up[1] * u], z);
+    line(parts.neck, q.sh, at(j.sh, 0, L.neck + 1, 0));
+    dot(parts.hair, at(j.head, -1.6, 0.6, 0));
+    dot(parts.face, at(j.head, 1.1, -0.3, 0));
+    dot(parts.eye, at(j.head, 4.2, 1.2, 2.6));
+    dot(parts.eye2, at(j.head, 4.2, 1.2, -2.6));
+    parts.eye2.style.display = ''; parts.far.style.opacity = '';
+    line(parts.nearUA, q.shN, q.e1); line(parts.nearFA, q.e1, q.h1); dot(parts.nearHand, q.h1);
+    parts.shadow && parts.shadow.setAttribute('ry', 7);
+    drawKb(parts, p, q);
+    return q;
+  }
+  function draw(parts, p) { return VIEW === 'side' || p.front ? drawSide(parts, p) : drawAngle(parts, p); }
+
+  function drawKb(parts, p, j) {
     if (p.kb) {
       let h = p.kb === 'far' ? j.h2 : p.kb === 'both' ? [(j.h1[0] + j.h2[0]) / 2, (j.h1[1] + j.h2[1]) / 2] : j.h1;
       let c;
@@ -184,7 +236,6 @@
     } else {
       parts.kbG.style.display = 'none';
     }
-    return j;
   }
 
   // ---------- Animation runtime ----------
@@ -263,5 +314,7 @@
     else if (!paused && a.paused) { a.paused = false; a.start += performance.now() - a.pausedAt; }
   }
 
-  global.Figure = { animate, stop, still, setPaused, frames, L, G };
+  // 'angle' (3/4 view, default) or 'side'; redraws figures already on screen
+  function setView(v) { VIEW = v === 'side' ? 'side' : 'angle'; }
+  global.Figure = { animate, stop, still, setPaused, frames, setView, L, G };
 })(window);
