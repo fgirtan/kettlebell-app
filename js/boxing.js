@@ -296,6 +296,13 @@
       this.enter(0);
       this.wake();
       this.timer = setInterval(() => this.tick(), 100);
+      // the phone drops the screen-on lock when you leave the app; take it back when you return
+      if (!this.visHook) {
+        this.visHook = true;
+        document.addEventListener('visibilitychange', () => {
+          if (document.visibilityState === 'visible' && this.el && !this.el.hidden && this.el.classList.contains('boxing') && this.running) this.wake();
+        });
+      }
     },
     async wake() { try { if ('wakeLock' in navigator) this.lock = await navigator.wakeLock.request('screen'); } catch (e) { /* not available */ } },
     enter(i) {
